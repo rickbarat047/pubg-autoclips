@@ -68,13 +68,17 @@ class Highlight:
 @dataclass
 class Export:
     id: int
-    clip_id: int
+    clip_id: int | None
     path: str
     status: str
     created_at: str
     size_bytes: int
     layout: str
     error: str
+    match_id: int | None = None
+    export_type: str = "clip"
+    duration: float = 0.0
+    segment_count: int = 0
 
 
 def row_to(obj: Any, row: Any) -> Any:

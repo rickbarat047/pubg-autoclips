@@ -117,8 +117,15 @@ class SettingsPage(QWidget):
         # --- Rendering ---
         rend = Card(); rl = QVBoxLayout(rend); rl.setContentsMargins(20, 18, 20, 18)
         rl.addWidget(section("Export / rendering"))
+        self.export_mode = QComboBox()
+        self.export_mode.addItems(["compilation", "separate"])
+        self.export_mode.setToolTip(
+            "compilation = one MP4 for the whole match; separate = one MP4 per highlight")
+        rl.addWidget(row("Export mode (default: compilation)", self.export_mode))
         self.layout = QComboBox()
-        self.layout.addItems(["blurred", "crop", "pillarbox"])
+        self.layout.addItems(["blurred", "crop", "pillarbox", "original"])
+        self.layout.setToolTip(
+            "blurred = vertical with blurred background; original = original aspect fit")
         rl.addWidget(row("Vertical layout preset", self.layout))
         self.fps = self._spin(15, 60)
         self.crf = self._spin(17, 28)
@@ -134,6 +141,35 @@ class SettingsPage(QWidget):
         rl.addWidget(row("Auto-export top clips after analysis", self.auto_export))
         rl.addWidget(row("Max clips to auto-export", self.auto_export_max))
         lay.addWidget(rend)
+
+        # --- Compilation (single final video) ---
+        comp = Card(); cl2 = QVBoxLayout(comp); cl2.setContentsMargins(20, 18, 20, 18)
+        cl2.addWidget(section("Highlight compilation (single final video)"))
+        self.comp_pre = self._double(0, 120, 1)
+        self.comp_post = self._double(0, 120, 1)
+        self.comp_min = self._double(3, 120, 1)
+        self.comp_max = self._double(5, 300, 1)
+        self.comp_gap = self._double(0, 30, 0.5)
+        self.comp_max_segments = self._spin(1, 50)
+        self.comp_fade = self._double(0, 1, 0.05)
+        self.comp_order = QComboBox()
+        self.comp_order.addItems(["chronological", "by score"])
+        self.comp_min_conf = self._double(0, 1, 0.05)
+        self.comp_min_score = self._double(0, 500, 1)
+        for label, w in [
+            ("Seconds before event", self.comp_pre),
+            ("Seconds after event", self.comp_post),
+            ("Minimum segment length (s)", self.comp_min),
+            ("Maximum segment length (s)", self.comp_max),
+            ("Merge gap between segments (s)", self.comp_gap),
+            ("Maximum segments", self.comp_max_segments),
+            ("Audio fade at cuts (s)", self.comp_fade),
+            ("Segment order", self.comp_order),
+            ("Min confidence for other moments", self.comp_min_conf),
+            ("Min score for other moments", self.comp_min_score),
+        ]:
+            cl2.addWidget(row(label, w))
+        lay.addWidget(comp)
 
         # --- System ---
         sysc = Card(); sl = QVBoxLayout(sysc); sl.setContentsMargins(20, 18, 20, 18)
@@ -204,6 +240,18 @@ class SettingsPage(QWidget):
         self.min_score.setValue(s.scoring.min_event_score)
         idx = self.layout.findText(s.render.layout)
         self.layout.setCurrentIndex(max(0, idx))
+        self.export_mode.setCurrentText(s.export_mode)
+        comp = s.compilation
+        self.comp_pre.setValue(comp.pre_event_sec)
+        self.comp_post.setValue(comp.post_event_sec)
+        self.comp_min.setValue(comp.min_segment_sec)
+        self.comp_max.setValue(comp.max_segment_sec)
+        self.comp_gap.setValue(comp.merge_gap_sec)
+        self.comp_max_segments.setValue(comp.max_segments)
+        self.comp_fade.setValue(comp.audio_fade_sec)
+        self.comp_order.setCurrentIndex(1 if comp.order_by_score else 0)
+        self.comp_min_conf.setValue(comp.min_support_confidence)
+        self.comp_min_score.setValue(comp.min_support_score)
         self.fps.setValue(s.render.fps)
         self.crf.setValue(s.render.crf)
         self.audio_br.setValue(s.render.audio_bitrate_kbps)
@@ -240,6 +288,17 @@ class SettingsPage(QWidget):
         s.clips.max_clips_per_match = self.max_clips.value()
         s.clips.sensitivity = self.sens.value()
         s.scoring.min_event_score = self.min_score.value()
+        s.export_mode = self.export_mode.currentText()
+        s.compilation.pre_event_sec = self.comp_pre.value()
+        s.compilation.post_event_sec = self.comp_post.value()
+        s.compilation.min_segment_sec = self.comp_min.value()
+        s.compilation.max_segment_sec = self.comp_max.value()
+        s.compilation.merge_gap_sec = self.comp_gap.value()
+        s.compilation.max_segments = self.comp_max_segments.value()
+        s.compilation.audio_fade_sec = self.comp_fade.value()
+        s.compilation.order_by_score = self.comp_order.currentIndex() == 1
+        s.compilation.min_support_confidence = self.comp_min_conf.value()
+        s.compilation.min_support_score = self.comp_min_score.value()
         s.render.layout = self.layout.currentText()
         s.render.fps = self.fps.value()
         s.render.crf = self.crf.value()

@@ -74,6 +74,34 @@ MIGRATIONS: list[tuple[int, str]] = [
         error TEXT NOT NULL DEFAULT ''
     );
     """),
+    (2, """
+    -- Rebuild exports so compilation records (one per match, not per clip)
+    -- can be stored alongside legacy individual-clip exports.
+    CREATE TABLE IF NOT EXISTS exports_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        clip_id INTEGER REFERENCES highlights(id) ON DELETE SET NULL,
+        match_id INTEGER REFERENCES matches(id) ON DELETE SET NULL,
+        export_type TEXT NOT NULL DEFAULT 'clip',
+        path TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        duration REAL NOT NULL DEFAULT 0,
+        segment_count INTEGER NOT NULL DEFAULT 0,
+        layout TEXT NOT NULL DEFAULT 'blurred',
+        error TEXT NOT NULL DEFAULT ''
+    );
+    INSERT INTO exports_new
+        (id, clip_id, path, status, created_at, size_bytes, layout, error,
+         export_type)
+    SELECT id, clip_id, path, status, created_at, size_bytes, layout, error,
+           'clip'
+    FROM exports;
+    DROP TABLE exports;
+    ALTER TABLE exports_new RENAME TO exports;
+    CREATE INDEX IF NOT EXISTS idx_exports_match ON exports(match_id);
+    CREATE INDEX IF NOT EXISTS idx_exports_type ON exports(export_type);
+    """),
 ]
 
 

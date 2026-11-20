@@ -27,6 +27,13 @@ def stat_card(title: str, value: str = "0", accent: bool = True) -> Card:
     return card
 
 
+def section(title: str) -> QLabel:
+    """A styled section heading label."""
+    lbl = QLabel(title)
+    lbl.setObjectName("sectionTitle")
+    return lbl
+
+
 def section_header(title: str, action_text: str | None = None):
     w = QWidget()
     lay = QHBoxLayout(w)

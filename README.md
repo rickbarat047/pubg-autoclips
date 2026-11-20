@@ -30,9 +30,17 @@ rank highlight candidates. No cloud services, paid APIs or mandatory online AI.
     duplicate removal.
 - SQLite persistence (settings, matches, jobs, events, highlights, exports)
   with schema migrations.
-- Vertical export via FFmpeg with three layouts (blurred background default,
-  crop, pillarbox), original audio preserved, H.264/AAC MP4.
-- Highlight gallery with thumbnails, filters, keep/discard and multi-export.
+- **Single Highlight Compilation (default export mode):** one match in → one
+  finished MP4 out. Selected moments are given smart boundaries, merged when
+  they overlap, arranged chronologically, rendered with identical parameters,
+  concatenated with short audio fades, and verified (resolution, codec,
+  duration, audio stream, full decode). Separate individual clips remain an
+  optional mode.
+- Vertical export via FFmpeg with four layouts (blurred background default,
+  crop, pillarbox, original-aspect), original audio preserved, H.264/AAC MP4.
+- Highlight gallery with thumbnails, filters, keep/discard and export selection.
+- Dedicated Export page with compilation stats, a visual timeline, editable
+  segment boundaries, preview rendering and one-click Open Folder / Play Video.
 - Simple clip editor with scrubbing, boundary adjustment and vertical preview.
 - Dashboard with live statistics; About page; settings for all major knobs.
 - Automated pytest suite with synthetic video fixtures.
@@ -128,10 +136,33 @@ an output folder during onboarding or in Settings.
    shown live. You can pause or cancel safely.
 4. **Highlights** — review cards, preview, filter, keep/discard.
 5. **Editor** — scrub and adjust start/end, check the vertical preview.
-6. **Export** — by default the top clips are exported automatically right
-   after analysis (disable in Settings → Export). You can also choose clips
-   manually in the gallery. Each becomes its own vertical MP4 in the output
-   folder. Exports are validated for resolution/codec/duration.
+6. **Export** — the Export page defaults to **Single Highlight Compilation**.
+   It shows the selected-segment counts, estimated duration, a timeline and
+   editable boundaries. After analysis the compilation is built automatically
+   (disable in Settings → Export). The result is **one** file named
+   `PUBG_Highlights_YYYY-MM-DD_HHMM.mp4` in the output folder. Choose
+   "Separate Individual Clips" in the mode selector if you prefer one MP4 per
+   highlight (the legacy behaviour).
+
+### Compilation details
+
+The default export produces **one** MP4 per match:
+
+- Every kept highlight becomes a segment with `10 s` before and `5 s` after its
+  event (configurable). Segments are clamped to `10–30 s` and overlapping or
+  near-adjacent moments (`≤ 2 s` gap) are merged into one encounter.
+- Confirmed eliminations, multi-kills and clutch candidates are always
+  prioritised; weak audio-only / visual-only windows are filtered out.
+- Segments are ordered chronologically by default (optional order-by-score).
+- Each segment is rendered with identical parameters, given a short audio fade
+  (0.15 s) to avoid clicks, then concatenated. Stream-copy concat is attempted
+  first, with a normalised re-encode fallback if streams are incompatible.
+- The output is verified for resolution, codec, duration, audio stream and a
+  full decode pass. Temporary segments live under the app cache directory and
+  are deleted only after successful verification.
+- A preview renders the same segments at low resolution into the cache.
+
+All of these values are configurable in **Settings → Highlight compilation**.
 
 ---
 
@@ -149,9 +180,10 @@ app/
     audio/       audio_analyzer, energy_detector, combat_detector
     vision/      motion_detector, scene_detector, activity_detector
     scoring/     event_scorer, clutch_detector, event_ranker
-  clips/        clip_selector, clip_boundaries, clip_merger, duplicate_remover
+  clips/        clip_selector, clip_boundaries, clip_merger, duplicate_remover,
+                compilation_builder   <- single final video
   rendering/    ffmpeg_runner, vertical_layout, audio_mixer, export_manager
-  workers/      analysis_worker, export_worker, thumbnail_worker
+  workers/      analysis_worker, export_worker, compilation_worker, thumbnail_worker
   ui/           main_window + pages + widgets
   utils/        paths, logging, hardware
 ```

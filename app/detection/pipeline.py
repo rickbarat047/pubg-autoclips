@@ -188,7 +188,9 @@ class AnalysisPipeline:
         ids: list[int] = []
         for c in clips:
             h = self.db.add_highlight(
-                match_id=match_id, event_id=None, start=c.start, end=c.end,
+                match_id=match_id,
+                event_id=getattr(c.event, "id", None) if c.event else None,
+                start=c.start, end=c.end,
                 duration=round(c.end - c.start, 3), score=c.score,
                 category=c.category, keep=1, thumbnail="",
             )

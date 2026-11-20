@@ -11,7 +11,9 @@ def build_video_filter(settings: RenderSettings) -> str:
         # Fills the frame but crops aggressively; documented trade-off.
         return (f"scale={w}:{h}:force_original_aspect_ratio=increase,"
                 f"crop={w}:{h},setsar=1")
-    if settings.layout == "pillarbox":
+    if settings.layout in ("pillarbox", "original"):
+        # Original source aspect ratio with neutral background fill — no
+        # cropping of kill feed, minimap or HUD.
         return (f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
                 f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1")
     # default: blurred background

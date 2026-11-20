@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from .utils.paths import default_output_folder, settings_path
 
 PresetName = Literal["fast", "balanced", "accurate"]
-LayoutName = Literal["blurred", "crop", "pillarbox"]
+LayoutName = Literal["blurred", "crop", "pillarbox", "original"]
+ExportMode = Literal["compilation", "separate"]
 
 
 class NormalizedRegion(BaseModel):
@@ -83,6 +84,29 @@ class ClipSettings(BaseModel):
         return self
 
 
+class CompilationSettings(BaseModel):
+    """Settings for the single highlight compilation export mode."""
+
+    pre_event_sec: float = Field(10.0, ge=0.0, le=120.0)
+    post_event_sec: float = Field(5.0, ge=0.0, le=120.0)
+    min_segment_sec: float = Field(10.0, ge=3.0, le=120.0)
+    max_segment_sec: float = Field(30.0, ge=5.0, le=300.0)
+    merge_gap_sec: float = Field(2.0, ge=0.0, le=30.0)
+    max_segments: int = Field(12, ge=1, le=50)
+    order_by_score: bool = False  # chronological by default
+    audio_fade_sec: float = Field(0.15, ge=0.0, le=1.0)
+    # Minimum confidence for non-kill events (audio-only / visual-only noise
+    # is excluded unless it is strong).
+    min_support_confidence: float = Field(0.55, ge=0.0, le=1.0)
+    min_support_score: float = Field(35.0, ge=0.0)
+
+    @model_validator(mode="after")
+    def check_bounds(self) -> "CompilationSettings":
+        if self.min_segment_sec > self.max_segment_sec:
+            raise ValueError("Minimum segment cannot exceed maximum segment")
+        return self
+
+
 class RenderSettings(BaseModel):
     layout: LayoutName = "blurred"
     width: int = Field(1080, ge=320)
@@ -103,12 +127,14 @@ class ProcessingSettings(BaseModel):
 
 class AppSettings(BaseModel):
     """Top-level persistent settings."""
-    version: int = 2
+    version: int = 3
     onboarding_complete: bool = False
     ign: str = ""
     output_folder: str = Field(default_factory=default_output_folder)
+    export_mode: ExportMode = "compilation"
     auto_export: bool = True
     auto_export_max_clips: int = Field(5, ge=1, le=20)
+    compilation: CompilationSettings = Field(default_factory=CompilationSettings)
     calibration: NormalizedRegion = Field(default_factory=NormalizedRegion)
     calibration_source_resolution: str = ""
     kill_feed: KillFeedSettings = Field(default_factory=KillFeedSettings)
@@ -159,6 +185,10 @@ class AppSettings(BaseModel):
                 settings.apply_preset("balanced")
                 settings.kill_feed.duplicate_window_sec = 10.0
                 settings.version = 2
+            if settings.version < 3:
+                # v2 exported every highlight separately; v3 defaults to one
+                # compiled highlight video. Existing preferences are kept.
+                settings.version = 3
             return settings
         except Exception:
             # Corrupt settings must never prevent startup.

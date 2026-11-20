@@ -21,11 +21,13 @@ from ..utils.hardware import detect_hardware
 from ..utils.logging import get_logger
 from ..utils.paths import default_output_folder, resource_base
 from ..workers.analysis_worker import AnalysisWorker
+from ..workers.compilation_worker import CompilationWorker
 from ..workers.export_worker import ExportJob, ExportWorker
 from .about_page import AboutPage
 from .analysis_page import AnalysisPage
 from .calibration_dialog import CalibrationDialog
 from .clips_page import ClipsPage
+from .compile_page import CompilePage
 from .dashboard import DashboardPage
 from .editor_page import EditorPage
 from .import_page import ImportPage
@@ -34,9 +36,15 @@ from .settings_page import SettingsPage
 
 log = get_logger("ui.main")
 
+# Page indices (kept as constants to avoid magic-number bugs).
+PAGE_DASHBOARD, PAGE_IMPORT, PAGE_ANALYSIS = 0, 1, 2
+PAGE_CLIPS, PAGE_EDITOR, PAGE_EXPORT = 3, 4, 5
+PAGE_SETTINGS, PAGE_ABOUT = 6, 7
+
 NAV = [
     ("Dashboard", "▦"), ("Import", "⬇"), ("Analysis", "◉"),
-    ("Highlights", "✦"), ("Editor", "✂"), ("Settings", "⚙"), ("About", "ⓘ"),
+    ("Highlights", "✦"), ("Editor", "✂"), ("Export", "⤓"),
+    ("Settings", "⚙"), ("About", "ⓘ"),
 ]
 
 
@@ -51,6 +59,9 @@ class MainWindow(QMainWindow):
         self._analysis_worker = None  # keep alive: Qt does not hold a Python ref
         self._export_thread: QThread | None = None
         self._export_worker = None
+        self._compilation_thread: QThread | None = None
+        self._compilation_worker = None
+        self._compilation_token: CancellationToken | None = None
         self._analysis_token: CancellationToken | None = None
         self._export_token: CancellationToken | None = None
         self._current_job_id: int | None = None
@@ -81,8 +92,8 @@ class MainWindow(QMainWindow):
         self.nav_buttons = []
         self.pages: list[QWidget] = [
             DashboardPage(self.ctx), ImportPage(self.ctx), AnalysisPage(),
-            ClipsPage(self.ctx), EditorPage(self.ctx), SettingsPage(self.ctx),
-            AboutPage(),
+            ClipsPage(self.ctx), EditorPage(self.ctx), CompilePage(self.ctx),
+            SettingsPage(self.ctx), AboutPage(),
         ]
         for i, (name, icon) in enumerate(NAV):
             b = QPushButton(f"  {icon}   {name}")
@@ -120,27 +131,32 @@ class MainWindow(QMainWindow):
         self.nav_group.idClicked.connect(self.navigate)
         dash: DashboardPage = self.pages[0]
         imp: ImportPage = self.pages[1]
-        self.analysis: AnalysisPage = self.pages[2]
-        self.clips: ClipsPage = self.pages[3]
-        self.editor: EditorPage = self.pages[4]
-        self.settings_page: SettingsPage = self.pages[5]
-        dash.import_requested.connect(lambda: self.navigate(1))
+        self.analysis: AnalysisPage = self.pages[PAGE_ANALYSIS]
+        self.clips: ClipsPage = self.pages[PAGE_CLIPS]
+        self.editor: EditorPage = self.pages[PAGE_EDITOR]
+        self.compile: CompilePage = self.pages[PAGE_EXPORT]
+        self.settings_page: SettingsPage = self.pages[PAGE_SETTINGS]
+        dash.import_requested.connect(lambda: self.navigate(PAGE_IMPORT))
         imp.match_ready.connect(self.start_analysis)
         self.analysis.cancel_requested.connect(self.cancel_analysis)
         self.analysis.pause_requested.connect(self.pause_analysis)
         self.clips.preview_requested.connect(self.open_editor)
         self.clips.export_requested.connect(self.export_highlights)
         self.editor.export_requested.connect(self.export_edited)
+        self.compile.compilation_requested.connect(self.start_compilation)
+        self.compile.separate_requested.connect(self.export_highlights)
         self.settings_page.calibrate_requested.connect(self.open_calibration)
         self.settings_page.settings_saved.connect(self._on_settings_saved)
 
     @Slot(int)
     def navigate(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
-        if index == 0:
-            self.pages[0].refresh()
-        if index == 3:
+        if index == PAGE_DASHBOARD:
+            self.pages[PAGE_DASHBOARD].refresh()
+        if index == PAGE_CLIPS and self.current_match_id is not None:
             self.clips.set_match(self.current_match_id)
+        if index == PAGE_EXPORT and self.current_match_id is not None:
+            self.compile.set_match(self.current_match_id)
 
     def open_calibration(self) -> None:
         dlg = CalibrationDialog(self.ctx.settings.calibration, self)
@@ -166,7 +182,7 @@ class MainWindow(QMainWindow):
         if not self.ctx.settings.ign:
             QMessageBox.warning(self, "IGN required",
                                 "Set your in-game name in Settings before analysing.")
-            self.navigate(5)
+            self.navigate(PAGE_SETTINGS)
             return
         job = self.ctx.db.create_job(match_id)
         self._current_job_id = job.id
@@ -192,7 +208,7 @@ class MainWindow(QMainWindow):
         self.current_match_id = match_id
         name = Path(path).name
         self.analysis.start(name)
-        self.navigate(2)
+        self.navigate(PAGE_ANALYSIS)
         thread.start()
         self.statusBar().showMessage(f"Analysing {name}")
 
@@ -200,18 +216,24 @@ class MainWindow(QMainWindow):
     def _analysis_done(self, result) -> None:
         self.analysis.finish()
         self.analysis.set_counts(len(result.events), len(result.clips))
-        self.pages[0].refresh()
+        self.pages[PAGE_DASHBOARD].refresh()
         self.clips.set_match(self.current_match_id)
+        self.compile.set_match(self.current_match_id)
         self.statusBar().showMessage(
-            f"Analysis complete — {len(result.events)} events, {len(result.clips)} clips")
+            f"Analysis complete — {len(result.events)} events, {len(result.clips)} candidates")
         if self._current_job_id is not None:
             self.ctx.jobs.unregister(self._current_job_id)
         if self.ctx.settings.auto_export and getattr(result, "highlight_ids", None):
-            ids = result.highlight_ids[:self.ctx.settings.auto_export_max_clips]
-            self.statusBar().showMessage(
-                f"Auto-exporting top {len(ids)} clip(s) to "
-                f"{self.ctx.settings.output_folder}")
-            self._start_export([(hid, None, None) for hid in ids])
+            if self.ctx.settings.export_mode == "compilation":
+                self.statusBar().showMessage("Auto-building highlight compilation…")
+                self.navigate(PAGE_EXPORT)
+                self.start_compilation(self._compilation_request())
+            else:
+                ids = result.highlight_ids[:self.ctx.settings.auto_export_max_clips]
+                self.statusBar().showMessage(
+                    f"Auto-exporting top {len(ids)} clip(s) to "
+                    f"{self.ctx.settings.output_folder}")
+                self._start_export([(hid, None, None) for hid in ids])
 
     @Slot(str, str)
     def _analysis_error(self, status: str, message: str) -> None:
@@ -237,7 +259,7 @@ class MainWindow(QMainWindow):
     @Slot(int)
     def open_editor(self, hid: int) -> None:
         self.editor.load_highlight(hid)
-        self.navigate(4)
+        self.navigate(PAGE_EDITOR)
 
     def _make_export_request(self, hid: int, start: float | None = None,
                              end: float | None = None) -> ExportRequest | None:
@@ -264,6 +286,105 @@ class MainWindow(QMainWindow):
     @Slot(int, float, float)
     def export_edited(self, hid: int, start: float, end: float) -> None:
         self._start_export([(hid, start, end)])
+
+    # ---------- Compilation (one match -> one MP4) ----------
+    def _compilation_request(self) -> dict:
+        """Build a compilation request from the current match's highlights."""
+        segs = self.compile.segments
+        return {
+            "source_path": self.compile.source_path,
+            "segments": segs,
+            "output_path": str(Path(self.ctx.settings.output_folder) /
+                               self._compilation_filename()),
+            "source_has_audio": self.compile.has_audio,
+            "video_duration": self.compile.match_duration,
+            "preview": False,
+        }
+
+    @staticmethod
+    def _compilation_filename() -> str:
+        return f"PUBG_Highlights_{datetime.now().strftime('%Y-%m-%d_%H%M')}.mp4"
+
+    @Slot(dict)
+    def start_compilation(self, request: dict) -> None:
+        if self._compilation_thread and self._compilation_thread.isRunning():
+            QMessageBox.warning(self, "Busy", "A compilation is already running.")
+            return
+        if self._export_thread and self._export_thread.isRunning():
+            QMessageBox.warning(self, "Busy", "An export is already running.")
+            return
+        segments = request["segments"]
+        if not segments:
+            self.compile.status_lbl.setText("No highlights selected to compile.")
+            return
+        token = CancellationToken()
+        self._compilation_token = token
+        preview = request.get("preview", False)
+        export_rec = None
+        if not preview:
+            export_rec = self.ctx.db.add_export(
+                clip_id=None, match_id=self.current_match_id,
+                export_type="compilation", path=request["output_path"],
+                status="pending", layout=self.ctx.settings.render.layout,
+            )
+        self._compilation_export_id = export_rec.id if export_rec else None
+        worker = CompilationWorker(
+            source_path=request["source_path"],
+            segments=segments,
+            output_path=request["output_path"],
+            settings=self.ctx.settings,
+            token=token,
+            source_has_audio=request.get("source_has_audio", True),
+            video_duration=request.get("video_duration", 0.0),
+            preview=preview,
+        )
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.started.connect(lambda: self.statusBar().showMessage("Building compilation…"))
+        worker.progress.connect(self.compile.set_progress)
+        worker.progress.connect(
+            lambda c, t, m: self.statusBar().showMessage(m))
+        worker.finished.connect(self._compilation_done)
+        worker.failed.connect(self._compilation_failed)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        self._compilation_thread = thread
+        self._compilation_worker = worker  # keep Python reference alive
+        self.ctx.register_thread(thread)
+        thread.start()
+
+    @Slot(str, float, int)
+    def _compilation_done(self, path: str, duration: float, count: int) -> None:
+        from app.media.probe import MediaProbe
+        meta = MediaProbe().probe(path)
+        if getattr(self, "_compilation_export_id", None):
+            self.ctx.db.update_export(
+                self._compilation_export_id, status="done",
+                size_bytes=meta.file_size, duration=duration, segment_count=count)
+        self.compile.set_result(path, duration)
+        self.pages[PAGE_DASHBOARD].refresh()
+        self.statusBar().showMessage(
+            f"Compilation ready: {Path(path).name} ({duration:.0f}s)")
+        if not Path(path).name.startswith("preview_"):
+            QMessageBox.information(
+                self, "Compilation complete",
+                f"Your highlight compilation is ready:\n\n{path}\n\n"
+                f"Duration: {duration:.0f} s\nSize: {meta.file_size / 1e6:.1f} MB")
+
+    @Slot(str)
+    def _compilation_failed(self, message: str) -> None:
+        if getattr(self, "_compilation_export_id", None):
+            self.ctx.db.update_export(
+                self._compilation_export_id, status="failed", error=message[:500])
+        self.compile.set_result("", 0, failed=message)
+        self.statusBar().showMessage("Compilation failed")
+        QMessageBox.warning(self, "Compilation failed", message[:600])
+
+    def cancel_compilation(self) -> None:
+        if self._compilation_token:
+            self._compilation_token.cancel()
 
     def _start_export(self, items: list[tuple[int, float | None, float | None]]) -> None:
         if self._export_thread and self._export_thread.isRunning():
@@ -313,7 +434,8 @@ class MainWindow(QMainWindow):
                                 (f" {failed} failed." if failed else ""))
 
     def closeEvent(self, event) -> None:
-        for thread in (self._analysis_thread, self._export_thread):
+        for thread in (self._analysis_thread, self._export_thread,
+                       self._compilation_thread):
             if thread and thread.isRunning():
                 reply = QMessageBox.question(
                     self, "Still working", "A task is still running. Cancel and quit?",

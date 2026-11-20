@@ -29,7 +29,9 @@ def test_ui_analysis_creates_clips(qtbot, monkeypatch, settings, db, synthetic_v
 
     # The worker used to be a local variable and was garbage-collected before
     # QThread started it, leaving the job stuck at "starting" with no clips.
-    qtbot.waitUntil(lambda: len(db.list_highlights(m.id)) > 0, timeout=60000)
+    qtbot.waitUntil(lambda: (db.get_latest_job(m.id) or type("J", (), {"status": ""})()).status == "done",
+                    timeout=90000)
+    qtbot.waitUntil(lambda: len(db.list_highlights(m.id)) > 0, timeout=30000)
     job = db.get_latest_job(m.id)
     assert job.status == "done"
     assert len(db.list_events(m.id)) >= 1

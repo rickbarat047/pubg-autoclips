@@ -32,10 +32,17 @@
   timeline scrubbing and approximate vertical preview, comprehensive settings,
   About page.
 - **Rendering/export**: FFmpeg vertical layouts (blurred background default,
-  crop, pillarbox), 1080×1920/30 FPS/H.264/AAC, original gameplay audio
-  preserved, path-with-spaces safe, encoder capability detection (libx264 →
-  libopenh264 → mpeg4 fallback; AMF only when available), output validation,
-  per-clip MP4 exports recorded in DB.
+  crop, pillarbox, original-aspect), 1080×1920/30 FPS/H.264/AAC, original
+  gameplay audio preserved, path-with-spaces safe, encoder capability detection
+  (libx264 → libopenh264 → mpeg4 fallback; AMF only when available), output
+  validation, exports recorded in DB.
+- **Single Highlight Compilation (default)**: one match → one MP4. Smart
+  pre/post boundaries (10/5 s, 10–30 s segments), overlap/short-gap merging,
+  confirmed-kill prioritisation, chronological ordering (optional by score),
+  short audio fades, stream-copy concat with re-encode fallback, full output
+  verification and temp cleanup. Separate individual clips remain an optional
+  mode. Dedicated Export page with stats, timeline, editable segments, preview,
+  Open Folder and Play Video actions.
 - **Services named in the spec**: `ProjectManager`, `JobManager`, `TaskQueue`,
   `EventBus`, `DatabaseManager`, `MediaProbe`, `AnalysisPipeline`,
   `HighlightScoringEngine` (alias of `EventScorer`), `ClipSelector`,
@@ -69,7 +76,10 @@ installed to `bin/`.
 
 ## 4. Tests executed and results
 
-- `python -m pytest -q` → **39 passed** (including FFprobe metadata, validation,
+- `python -m pytest -q` → **56 passed** (including compilation planning,
+  chronological ordering, overlap merging, duplicate removal, pre/post
+  boundaries, FFmpeg concatenation, audio preservation, output resolution,
+  integrity, temp cleanup, failed-export recovery, FFprobe metadata, validation,
   IGN normalisation/matching, OCR duplicate suppression with fake OCR, event
   scoring, grouping/ranking, clip boundaries/merging/deduplication, SQLite
   persistence, cancellation tokens, end-to-end pipeline on synthetic footage,
