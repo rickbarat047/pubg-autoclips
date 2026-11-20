@@ -48,7 +48,9 @@ class MainWindow(QMainWindow):
         self.resize(1280, 800)
         self.setMinimumSize(1024, 640)
         self._analysis_thread: QThread | None = None
+        self._analysis_worker = None  # keep alive: Qt does not hold a Python ref
         self._export_thread: QThread | None = None
+        self._export_worker = None
         self._analysis_token: CancellationToken | None = None
         self._export_token: CancellationToken | None = None
         self._current_job_id: int | None = None
@@ -185,6 +187,7 @@ class MainWindow(QMainWindow):
         worker.error.connect(thread.quit)
         thread.finished.connect(worker.deleteLater)
         self._analysis_thread = thread
+        self._analysis_worker = worker  # MUST persist until the thread starts
         self.ctx.register_thread(thread)
         self.current_match_id = match_id
         name = Path(path).name
@@ -291,6 +294,7 @@ class MainWindow(QMainWindow):
         worker.finished.connect(thread.quit)
         thread.finished.connect(worker.deleteLater)
         self._export_thread = thread
+        self._export_worker = worker
         self.ctx.register_thread(thread)
         thread.start()
         self.statusBar().showMessage(f"Exporting {len(jobs)} clip(s)…")
