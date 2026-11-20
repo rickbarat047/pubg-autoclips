@@ -148,10 +148,11 @@ def select_segments(highlights: list[Highlight], events: list[Event],
     events_by_id = {e.id: e for e in events}
 
     # Highlight-derived segments (respecting the user's keep/discard choice).
+    # Coverage is measured from the segments we ACTUALLY keep — not from raw
+    # highlight windows, which may be filtered out or discarded. Otherwise a
+    # confirmed kill inside a weak highlight can be lost entirely.
     segments: list[Segment] = []
-    covered: list[tuple[float, float]] = []
     for h in highlights:
-        covered.append((h.start, h.end))
         if not h.keep:
             continue  # explicit user removal
         ev = events_by_id.get(h.event_id) if h.event_id else None
@@ -173,11 +174,13 @@ def select_segments(highlights: list[Highlight], events: list[Event],
 
     # Ensure every high-confidence event (especially confirmed kills) is
     # represented even if the individual-clip ranking dropped it.
-    for ev in events:
-        if not _event_supports(ev.category, ev.confidence, ev.score, cfg):
-            continue
-        if ev.category not in PRIORITY_CATEGORIES:
-            continue
+    covered = [(s.start, s.end) for s in segments]
+    priority_events = sorted(
+        [e for e in events if e.category in PRIORITY_CATEGORIES
+         and _event_supports(e.category, e.confidence, e.score, cfg)],
+        key=lambda e: (e.category != "KILL", e.timestamp),
+    )
+    for ev in priority_events:
         if any(s <= ev.timestamp <= e for s, e in covered):
             continue
         start, end = segment_for_event(ev.timestamp, cfg, video_duration)
@@ -189,13 +192,20 @@ def select_segments(highlights: list[Highlight], events: list[Event],
             event_ids=[ev.id], highlight_ids=[],
             source_labels=[ev.category],
         ))
+        covered.append((start, end))
 
     segments = remove_redundant(merge_segments(segments, cfg.merge_gap_sec))
+    # When the configured maximum is smaller than the number of candidates,
+    # confirmed kills must survive the cut before weaker moments.
+    if len(segments) > cfg.max_segments:
+        segments.sort(key=lambda s: (s.category not in PRIORITY_CATEGORIES,
+                                     -s.score, s.start))
+        segments = segments[:cfg.max_segments]
     if cfg.order_by_score:
         segments.sort(key=lambda s: (-s.score, s.start))
     else:
         segments.sort(key=lambda s: s.start)
-    return segments[:cfg.max_segments]
+    return segments
 
 
 def total_duration(segments: list[Segment]) -> float:
@@ -219,6 +229,18 @@ def category_counts(segments: list[Segment]) -> dict[str, int]:
         else:
             counts["other"] += 1
     return counts
+
+
+def kill_coverage(segments: list[Segment], events: list[Event]) -> tuple[int, int]:
+    """Return (confirmed kills included in segments, total confirmed kills)."""
+    kills = [e for e in events if e.category == "KILL" and e.confidence >= 0.6]
+    included_ids = {eid for s in segments for eid in s.event_ids}
+    covered = 0
+    for ev in kills:
+        if ev.id in included_ids or any(s.start <= ev.timestamp <= s.end
+                                        for s in segments):
+            covered += 1
+    return covered, len(kills)
 
 
 def validate_segments(segments: list[Segment], video_duration: float) -> None:

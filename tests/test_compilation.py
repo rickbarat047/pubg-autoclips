@@ -132,6 +132,36 @@ def test_all_confirmed_kills_included_even_without_highlight(settings):
     assert [s.category for s in segs] == ["KILL", "KILL"]
 
 
+def test_seven_kills_across_17_minutes_all_covered(settings):
+    """17-minute match, 7 confirmed kills -> all 7 must be in the compilation."""
+    cfg = _cfg(settings)
+    times = [42, 185, 320, 505, 690, 880, 1010]
+    events = [_event(i + 1, t, "KILL", 0.9, 60 + i) for i, t in enumerate(times)]
+    # Give the first kill a weak/uncertain highlight to reproduce the case
+    # where an event is 'covered' by a highlight that gets filtered out.
+    highlights = [_highlight(i + 1, t - 8, t + 12, category="KILL",
+                             score=60 + i, event_id=i + 1)
+                  for i, t in enumerate(times)]
+    highlights[0] = _highlight(1, times[0] - 8, times[0] + 12,
+                               category="UNKNOWN", score=5, event_id=1)
+    segs = select_segments(highlights, events, cfg, 1020.0)
+    covered_ids = {eid for s in segs for eid in s.event_ids}
+    assert all(e.id in covered_ids for e in events), (
+        f"Missing kills: {[e.id for e in events if e.id not in covered_ids]}")
+    for t in times:
+        assert any(s.start <= t <= s.end for s in segs), f"Kill at {t}s not in any segment"
+    assert [s.start for s in segs] == sorted(s.start for s in segs)
+
+
+def test_kill_coverage_helper(settings):
+    from app.clips.compilation_builder import kill_coverage
+    events = [_event(1, 40), _event(2, 200), _event(3, 500)]
+    segs = [Segment(30, 45, "KILL", 60, 0.9, event_ids=[1]),
+            Segment(190, 205, "KILL", 60, 0.9, event_ids=[2])]
+    covered, total = kill_coverage(segs, events)
+    assert (covered, total) == (2, 3)
+
+
 def test_category_counts():
     segs = [Segment(0, 10, "KILL", 1, 1), Segment(20, 30, "MULTI_KILL", 1, 1),
             Segment(40, 50, "CLUTCH_CANDIDATE", 1, 1), Segment(60, 70, "COMBAT", 1, 1)]

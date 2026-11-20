@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 
 from ..bootstrap import AppContext
 from ..clips.compilation_builder import (
-    Segment, category_counts, select_segments, total_duration,
+    Segment, category_counts, kill_coverage, select_segments, total_duration,
 )
 from ..utils.logging import get_logger
 from .widgets.common import Card, empty_state, section
@@ -259,15 +259,18 @@ class CompilePage(QWidget):
         self.has_audio = bool(m.audio_codec)
         highlights = self.ctx.db.list_highlights(match_id)
         events = self.ctx.db.list_events(match_id)
+        self.events = events
         self.segments = select_segments(highlights, events, self.ctx.settings, m.duration)
         self._rebuild_rows()
         self.refresh()
 
     def refresh(self) -> None:
         counts = category_counts(self.segments)
-        cfg = self.ctx.settings.compilation
+        covered, total_kills = kill_coverage(self.segments,
+                                             getattr(self, "events", []))
         self.stats_lbl.setText(
             f"Selected segments: <b>{len(self.segments)}</b> &nbsp;•&nbsp; "
+            f"<b style='color:#7CFC00'>Kills covered: {covered}/{total_kills}</b> &nbsp;•&nbsp; "
             f"Confirmed kills: <b>{counts['confirmed_kills']}</b> &nbsp;•&nbsp; "
             f"Multi-kills: <b>{counts['multi_kills']}</b> &nbsp;•&nbsp; "
             f"Clutch candidates: <b>{counts['clutch_candidates']}</b> &nbsp;•&nbsp; "

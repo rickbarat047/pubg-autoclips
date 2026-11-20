@@ -76,7 +76,7 @@ installed to `bin/`.
 
 ## 4. Tests executed and results
 
-- `python -m pytest -q` → **56 passed** (including compilation planning,
+- `python -m pytest -q` → **58 passed** (including 7-kill coverage, compilation planning,
   chronological ordering, overlap merging, duplicate removal, pre/post
   boundaries, FFmpeg concatenation, audio preservation, output resolution,
   integrity, temp cleanup, failed-export recovery, FFprobe metadata, validation,
