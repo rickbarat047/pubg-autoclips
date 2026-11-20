@@ -80,7 +80,7 @@ class EventScorer:
         elif ev.category == "knock_candidate":
             # Partial IGN match: likely a knock with garbled OCR. Never
             # presented as a confirmed elimination.
-            b["confirmed_kill"] = self.w.confirmed_kill * 0.5
+            b["confirmed_kill"] = self.w.confirmed_kill * 0.65
             category = CATEGORY_KNOCK_CANDIDATE
         elif ev.category == "possible":
             b["confirmed_kill"] = self.w.confirmed_kill * 0.35
@@ -137,9 +137,9 @@ class EventScorer:
         This is never treated as a confirmed kill; it supports other signals.
         """
         b = {
-            "audio_intensity": round(self.w.audio_intensity * window.peak_intensity, 2),
-            "sustained_combat": round(self.w.sustained_combat * min(1.0, window.spikes / 4), 2),
-            "uncertainty_penalty": -self.w.uncertainty_penalty * 0.6,
+            "audio_intensity": round(self.w.audio_intensity * 1.3 * window.peak_intensity, 2),
+            "sustained_combat": round(self.w.sustained_combat * 1.5 * min(1.0, window.spikes / 4), 2),
+            "uncertainty_penalty": -self.w.uncertainty_penalty * 0.2,
         }
         score = round(max(0.0, sum(b.values())), 2)
         confidence = 0.3

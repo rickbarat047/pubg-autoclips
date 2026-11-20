@@ -7,8 +7,10 @@ rank highlight candidates. No cloud services, paid APIs or mandatory online AI.
 
 > **Honesty note:** Detection accuracy on real PUBG footage has **not** been
 > validated. OCR cannot reliably distinguish a kill from a knock unless the
-> feed text itself says so. Clutch events are labelled *candidates*, never
-> verified 1v2/1v3/1v4. See [Limitations](#limitations).
+> feed text itself says so. Knock moments are included whenever the feed row
+> mentions your IGN, but the app cannot always tell a knock from a kill from
+> text alone; strong combat audio is also used as a fallback. Clutch events are
+> labelled *candidates*, never verified 1v2/1v3/1v4. See [Limitations](#limitations).
 
 ---
 

@@ -95,5 +95,47 @@ class OcrEngine:
                 best_score = max(best_score, score)
         return OcrResult(" ".join(lines), best_score, lines)
 
+    def recognize_rows(self, region: np.ndarray) -> OcrResult:
+        """OCR each bright text row separately, upscaled.
+
+        Knock-feed rows are dimmer and smaller than kill rows. Detecting the
+        horizontal text bands and feeding enlarged strips to the recogniser
+        recovers names that whole-region OCR misses.
+        """
+        if region is None or region.size == 0:
+            return OcrResult("", 0.0, [])
+        gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
+        bright = cv2.threshold(gray, 110, 255, cv2.THRESH_BINARY)[1]
+        projection = (bright > 0).sum(axis=1)
+        height = region.shape[0]
+        bands: list[tuple[int, int]] = []
+        start: int | None = None
+        for y, count in enumerate(projection):
+            if count > 2 and start is None:
+                start = y
+            elif count <= 2 and start is not None:
+                if y - start >= 7:
+                    bands.append((start, y))
+                start = None
+        if start is not None and height - start >= 7:
+            bands.append((start, height))
+        if not bands:
+            return OcrResult("", 0.0, [])
+
+        best = OcrResult("", 0.0, [])
+        for y1, y2 in bands[:8]:
+            strip = region[max(0, y1 - 4):min(height, y2 + 4), :]
+            if strip.size == 0:
+                continue
+            enlarged = cv2.resize(strip, None, fx=2.5, fy=2.5,
+                                  interpolation=cv2.INTER_CUBIC)
+            try:
+                result = self.recognize(enlarged)
+            except Exception:  # noqa: BLE001
+                continue
+            if result.confidence > best.confidence:
+                best = result
+        return best
+
     def is_ready(self) -> bool:
         return self._engine is not None

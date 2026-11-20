@@ -14,7 +14,7 @@ from ...media.frame_extractor import FrameSample
 from ...media.video_reader import VideoReader
 from ...utils.logging import get_logger
 from .ign_matcher import (
-    classify_feed_line, feed_entry_signature, looks_like_knock,
+    classify_feed_line, feed_entry_signature, ign_match_score, looks_like_knock,
 )
 from .ocr_engine import OcrEngine
 
@@ -62,6 +62,7 @@ class KillFeedDetector:
         candidates: dict[str, dict] = {}
         last_emit: dict[str, float] = {}
         total = max(1, len(frames))
+        prev_small: np.ndarray | None = None
 
         for idx, (t, frame) in enumerate(frames):
             if token:
@@ -72,7 +73,7 @@ class KillFeedDetector:
             if crop.size == 0:
                 continue
             try:
-                ocr_res = self.ocr.recognize(crop)
+                ocr_res, prev_small = self._recognize_crop(crop, prev_small)
             except Exception as exc:  # noqa: BLE001
                 log.warning("OCR failed at %.1fs: %s", t, exc)
                 continue
@@ -98,6 +99,7 @@ class KillFeedDetector:
         events: list[FeedEvent] = []
         candidates: dict[str, dict] = {}
         last_emit: dict[str, float] = {}
+        prev_small: np.ndarray | None = None
         with VideoReader(video_path) as reader:
             total = max(1, int((reader.duration or 1) / cfg.sample_interval_sec))
             for idx, (t, frame) in enumerate(
@@ -111,7 +113,7 @@ class KillFeedDetector:
                 if crop.size == 0:
                     continue
                 try:
-                    ocr_res = self.ocr.recognize(crop)
+                    ocr_res, prev_small = self._recognize_crop(crop, prev_small)
                 except Exception as exc:  # noqa: BLE001
                     log.warning("OCR failed at %.1fs: %s", t, exc)
                     continue
@@ -123,6 +125,26 @@ class KillFeedDetector:
                 self._report(progress, idx / total, f"OCR {t:.0f}s")
         self._report(progress, 1.0, "Kill-feed analysis complete")
         return events
+
+    def _recognize_crop(self, crop: np.ndarray, prev_small: np.ndarray | None):
+        """OCR a feed crop, retrying per-row on dim/garbled text.
+
+        Returns (OcrResult, small_gray_frame_for_next_change_check).
+        """
+        small = cv2.resize(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY), (80, 40))
+        result = self.ocr.recognize(crop)
+        score = ign_match_score(result.text, self.settings.ign)
+        changed = prev_small is None or float(
+            np.mean(cv2.absdiff(small, prev_small))) > 2.0
+        if changed and score < 0.55:
+            try:
+                rows = self.ocr.recognize_rows(crop)
+                row_score = ign_match_score(rows.text, self.settings.ign)
+                if row_score > score:
+                    result = rows
+            except Exception as exc:  # noqa: BLE001
+                log.debug("Row OCR failed: %s", exc)
+        return result, small
 
     def _process(self, t: float, text: str, ocr_conf: float, lines: list[str],
                  candidates: dict, last_emit: dict, cfg) -> FeedEvent | None:

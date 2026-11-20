@@ -84,7 +84,7 @@ def is_match(ocr_text: str, ign: str, threshold: float = 0.82) -> bool:
     return ign_match_score(ocr_text, ign) >= threshold
 
 
-def classify_feed_line(text: str, ign: str, threshold: float = 0.75) -> str:
+def classify_feed_line(text: str, ign: str, threshold: float = 0.72) -> str:
     """Classify a kill-feed line relative to the player's IGN.
 
     Returns one of: 'confirmed', 'possible', 'unrelated'.
@@ -94,7 +94,9 @@ def classify_feed_line(text: str, ign: str, threshold: float = 0.75) -> str:
     score = ign_match_score(text, ign)
     if score >= threshold:
         return "confirmed"
-    if score >= max(0.42, threshold - 0.33):
+    if score >= max(0.30, threshold - 0.42):
+        # Includes garbled / dim rows — usually knocks, whose feed text is
+        # harder to read than a kill row.
         return "possible"
     return "unrelated"
 

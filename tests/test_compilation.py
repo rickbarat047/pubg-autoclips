@@ -132,6 +132,15 @@ def test_all_confirmed_kills_included_even_without_highlight(settings):
     assert [s.category for s in segs] == ["KILL", "KILL"]
 
 
+def test_combat_fallback_covers_engagement_without_ocr(settings):
+    cfg = _cfg(settings)
+    combat = _event(1, 300, "COMBAT", 0.3, 30)
+    segs = select_segments([], [combat], cfg, 600.0)
+    assert len(segs) == 1
+    assert segs[0].event_ids == [1]
+    assert segs[0].start <= 300 <= segs[0].end
+
+
 def test_knocks_are_included_in_compilation(settings):
     from app.detection.scoring.event_scorer import CATEGORY_KNOCK
     cfg = _cfg(settings)

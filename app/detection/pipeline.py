@@ -146,7 +146,9 @@ class AnalysisPipeline:
             for e in result.feed_events
         ]
         for cw in result.combat_windows:
-            if cw.peak_intensity >= 0.55 and len(scored) < 40:
+            # Intense combat with multiple spikes is the best non-OCR signal
+            # for a knock that the feed OCR may have missed entirely.
+            if cw.peak_intensity >= 0.5 and cw.spikes >= 2 and len(scored) < 40:
                 scored.append(self.scorer.score_audio_only(cw))
         scored, groups = group_multi_kills(scored)
         result.multi_kill_groups = groups

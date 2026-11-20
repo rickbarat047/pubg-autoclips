@@ -196,6 +196,25 @@ def select_segments(highlights: list[Highlight], events: list[Event],
         ))
         covered.append((start, end))
 
+    # Fallback: a strong combat window with several audio spikes can be a
+    # knock/engagement the feed OCR failed to read. Include a few of these so
+    # knock moments are not lost purely because of poor OCR.
+    combat_fallbacks = [
+        e for e in events
+        if e.category in ("COMBAT", "UNKNOWN")
+        and e.score >= 18.0
+        and not any(s.start <= e.timestamp <= s.end for s in segments)
+    ]
+    for ev in sorted(combat_fallbacks, key=lambda e: -e.score)[:3]:
+        start, end = segment_for_event(ev.timestamp, cfg, video_duration)
+        segments.append(Segment(
+            start=start, end=end, category="COMBAT", score=ev.score,
+            confidence=ev.confidence,
+            evidence={"event_id": ev.id, "source": ev.source,
+                      "note": "combat fallback — OCR did not identify this moment"},
+            event_ids=[ev.id], source_labels=["COMBAT"],
+        ))
+
     segments = remove_redundant(merge_segments(segments, cfg.merge_gap_sec))
     # When the configured maximum is smaller than the number of candidates,
     # confirmed kills must survive the cut before weaker moments.
