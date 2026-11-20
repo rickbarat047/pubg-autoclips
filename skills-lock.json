@@ -1,0 +1,103 @@
+{
+  "version": 2,
+  "skills": {
+    "code-review": {
+      "source": "mattpocock/skills",
+      "commit": "abeeaf95660ba9e8b7c753eb38f441ca707a8823",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/code-review/SKILL.md",
+      "computedHash": "ce86b40a3d1648a0018b712f0c70704e6c2316b2a9b9e915ab116916a31273dc"
+    },
+    "computer-vision-opencv": {
+      "source": "Mindrally/skills",
+      "commit": "7682ca77710e0971eab4e0ae5dddfa281aea0ba5",
+      "sourceType": "github",
+      "skillPath": "computer-vision-opencv/SKILL.md",
+      "computedHash": "91752d0ea85cca91c07e09bdc2f0c2a814779e01e0f6cd817c6ae3a072ed725f"
+    },
+    "ffmpeg": {
+      "source": "digitalsamba/claude-code-video-toolkit",
+      "commit": "a89a32078bf1bad0107a43c228de38ced2baee89",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ffmpeg/SKILL.md",
+      "computedHash": "ff8e85c81bac9a0bc655b94893f06e60e34c42f3faa98ee60e2cdd51a0215013"
+    },
+    "ffmpeg-audio-processing": {
+      "source": "JosiahSiegel/claude-plugin-marketplace",
+      "commit": "5a1b1123b9e50aa9a66a61005ca6fe012cc7442d",
+      "sourceType": "github",
+      "skillPath": "plugins/ffmpeg-core/skills/ffmpeg-audio-processing/SKILL.md",
+      "computedHash": "27557d66491dd939c7fdf1192dff0177bd323f84de65964b7f0190f61e9fcdd2"
+    },
+    "paddleocr-text-recognition": {
+      "source": "Aidenwu0209/PaddleOCR-Skills",
+      "commit": "e73477d877a726b8233d02d0b3a8638f95cd6e96",
+      "sourceType": "github",
+      "skillPath": "skills/paddleocr-text-recognition/SKILL.md",
+      "computedHash": "0bfb493384fc4da4126a244c8f9a213501ed9ba28f1fdd10d15f5c9bebbc99cf"
+    },
+    "pyside6-engineer": {
+      "source": "vosslab/vosslab-skills",
+      "commit": "81d3644483caef4bdac15764bcb14b382a0a2072",
+      "sourceType": "github",
+      "skillPath": "skills/experts/pyside6-engineer/SKILL.md",
+      "computedHash": "fa4c8058f5cd2beb451bf800401b2218e779dab2a4128405d341a21b935a21f6"
+    },
+    "python-background-jobs": {
+      "source": "wshobson/agents",
+      "commit": "42203085cfc5736204bf0f6d436dff7e1da0bf3f",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-background-jobs/SKILL.md",
+      "computedHash": "74b5aeceee7e46b51e1b9eafb082b3dc8134e71797e4aae4b049b04e0d0160b0"
+    },
+    "python-design-patterns": {
+      "source": "wshobson/agents",
+      "commit": "42203085cfc5736204bf0f6d436dff7e1da0bf3f",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-design-patterns/SKILL.md",
+      "computedHash": "bb31c26764cb2bf8f19955e1610e8102509cb1569e1575a413ffb3ada23a3c16"
+    },
+    "python-performance-optimization": {
+      "source": "wshobson/agents",
+      "commit": "42203085cfc5736204bf0f6d436dff7e1da0bf3f",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-performance-optimization/SKILL.md",
+      "computedHash": "81a1369058d4089e208104bbfc384cd73eb6b62d654bda87cf33cb97ea296ccd"
+    },
+    "python-project-structure": {
+      "source": "wshobson/agents",
+      "commit": "42203085cfc5736204bf0f6d436dff7e1da0bf3f",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-project-structure/SKILL.md",
+      "computedHash": "b7d35eb6783ddf2a99c130dc570e47341fd78749024382a6f74d146024404918"
+    },
+    "python-testing-patterns": {
+      "source": "wshobson/agents",
+      "commit": "42203085cfc5736204bf0f6d436dff7e1da0bf3f",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-testing-patterns/SKILL.md",
+      "computedHash": "8113c05a831d4872c9294b0df26a335c09af423ee2e23d8b9b6817b300d96796"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/systematic-debugging/SKILL.md",
+      "computedHash": "79ff0583175346e39431b0dc713b223edd1bd7a7ea2b6c8b78b2fb9a3fed6782"
+    },
+    "test-driven-development": {
+      "source": "obra/superpowers",
+      "commit": "22f0b463e7a5e579904dd6211a520321035526f7",
+      "sourceType": "github",
+      "skillPath": "skills/test-driven-development/SKILL.md",
+      "computedHash": "2782702b2cf69ace085ed30d067b6f8bfd2d777ad51770fc5bdae9cb5c1b5c04"
+    },
+    "ui-ux-design-pro": {
+      "source": "saifyxpro/ui-ux-design-pro-skill",
+      "commit": "3c24c74446e37634d33332e77db4445e2a9cac5b",
+      "sourceType": "github",
+      "skillPath": "skills/ui-ux-design-pro/SKILL.md",
+      "computedHash": "7d8644c61293afabf07489fa689c6969c9c4b28041b28411e8550e95676a1ac0"
+    }
+  }
+}

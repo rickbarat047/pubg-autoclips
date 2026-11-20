@@ -217,6 +217,71 @@ explainable, and all weights are configurable in `config.py` / settings.
 
 ---
 
+## Development environment (OpenCode / Windows)
+
+The project is set up for autonomous development with **OpenCode 1.19.5** on
+Windows 11. Nothing needs to be installed globally to work on the project.
+
+### Toolchain present
+
+| Tool | Version / location |
+|---|---|
+| Python | 3.11.9 64-bit |
+| Project venv | `.venv/` (create with `python -m venv .venv`) |
+| Node.js | 26.13.1 (portable install, used by the skills CLI) |
+| npm | 11.20.0 |
+| OpenCode | 1.19.5 |
+| FFmpeg / FFprobe | `bin/` (BtbN win64 GPL shared build, with DLLs) |
+| GitHub CLI | authenticated as `rickbarat047` (portable copy in the OpenCode temp dir) |
+
+### Python setup
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+All runtime and development dependencies (PySide6, OpenCV, RapidOCR + ONNX
+Runtime, NumPy, SciPy, soundfile, Pydantic, platformdirs, pytest/pytest-qt,
+PyInstaller) are declared in `requirements.txt` / `requirements-dev.txt` and
+installed into `.venv`. No CUDA/NVIDIA packages are used.
+
+### Agent skills
+
+Skills are installed **project-locally** under `.agents/skills/` (the official
+OpenCode-supported location) and pinned in `skills-lock.json`. They are managed
+with the official CLI:
+
+```powershell
+npx --yes skills@1.9.0 list          # list installed skills
+npx --yes skills@1.9.0 find <query>  # discover skills
+npx --yes skills@1.9.0 add <owner/repo@skill> -a opencode -y
+```
+
+Installed categories: Python design patterns / project structure / background
+jobs / testing / performance, PySide6 engineering, OpenCV computer vision,
+FFmpeg video and audio processing, PaddleOCR text recognition, TDD, systematic
+debugging, code review, and UI/UX design.
+
+Three project-specific skills add PUBG AutoClips knowledge:
+
+- `pubg-killfeed-ocr` — calibration, IGN matching, duplicate suppression, confidence
+- `pubg-video-processing` — FFmpeg, one-pass extraction, vertical export, verification
+- `pubg-performance-optimisation` — CPU-first tuning, worker lifetime, Windows behaviour
+
+### OpenCode configuration
+
+User configuration at `%USERPROFILE%\.config\opencode\opencode.jsonc` is left
+untouched: it contains only the remote Vercel MCP server. No OpenCode plugins
+are configured — the installed skills plus the existing MCP server already
+cover documentation lookup, code review, testing and diagnostics, so adding
+plugins would only add dependencies without benefit.
+
+`opencode plugin list` is not a valid subcommand in OpenCode 1.19.5 (only
+`opencode plugin <module>` exists); verify plugins by inspecting
+`opencode.jsonc` and `~/.config/opencode/node_modules` instead.
+
 ## Diagnostics
 
 Logs: `%LOCALAPPDATA%\PUBG AutoClips\Logs\pubg_autoclips.log` (rotating).
