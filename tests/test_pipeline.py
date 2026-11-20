@@ -41,3 +41,4 @@ def test_pipeline_end_to_end(settings, db, synthetic_video):
     assert len(highlights) == len(result.clips)
     for h in highlights:
         assert 0 <= h.start < h.end <= 6.1
+        assert h.event_id is not None, "highlight must link to its source event"

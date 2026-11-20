@@ -38,7 +38,7 @@ class NormalizedRegion(BaseModel):
 class KillFeedSettings(BaseModel):
     sample_interval_sec: float = Field(2.0, gt=0.0, le=30.0)
     confidence_threshold: float = Field(0.45, ge=0.0, le=1.0)
-    min_observations: int = Field(2, ge=1, le=10)
+    min_observations: int = Field(1, ge=1, le=10)
     duplicate_window_sec: float = Field(10.0, ge=0.0, le=60.0)
     enabled: bool = True
 
@@ -91,7 +91,7 @@ class CompilationSettings(BaseModel):
     post_event_sec: float = Field(5.0, ge=0.0, le=120.0)
     min_segment_sec: float = Field(10.0, ge=3.0, le=120.0)
     max_segment_sec: float = Field(30.0, ge=5.0, le=300.0)
-    merge_gap_sec: float = Field(2.0, ge=0.0, le=30.0)
+    merge_gap_sec: float = Field(6.0, ge=0.0, le=30.0)
     max_segments: int = Field(12, ge=1, le=50)
     order_by_score: bool = False  # chronological by default
     audio_fade_sec: float = Field(0.15, ge=0.0, le=1.0)
@@ -127,7 +127,7 @@ class ProcessingSettings(BaseModel):
 
 class AppSettings(BaseModel):
     """Top-level persistent settings."""
-    version: int = 3
+    version: int = 5
     onboarding_complete: bool = False
     ign: str = ""
     output_folder: str = Field(default_factory=default_output_folder)
@@ -189,6 +189,19 @@ class AppSettings(BaseModel):
                 # v2 exported every highlight separately; v3 defaults to one
                 # compiled highlight video. Existing preferences are kept.
                 settings.version = 3
+            if settings.version < 4:
+                # Two observations at 2 s sampling missed briefly-visible feed
+                # rows (missing kills). Per-row signatures now guard against
+                # duplicates, so one observation is sufficient.
+                if settings.kill_feed.min_observations == 2:
+                    settings.kill_feed.min_observations = 1
+                settings.version = 4
+            if settings.version < 5:
+                # Collapse duplicate detections of the same feed row into one
+                # clip segment instead of rendering near-identical sections.
+                if settings.compilation.merge_gap_sec == 2.0:
+                    settings.compilation.merge_gap_sec = 6.0
+                settings.version = 5
             return settings
         except Exception:
             # Corrupt settings must never prevent startup.

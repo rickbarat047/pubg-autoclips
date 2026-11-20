@@ -197,6 +197,10 @@ class DatabaseManager:
         with self.transaction() as conn:
             conn.execute("DELETE FROM events WHERE job_id=?", (job_id,))
 
+    def delete_events_for_match(self, match_id: int) -> None:
+        with self.transaction() as conn:
+            conn.execute("DELETE FROM events WHERE match_id=?", (match_id,))
+
     # ---------- highlights ----------
     def add_highlight(self, **kwargs) -> Highlight:
         cols = ", ".join(kwargs)

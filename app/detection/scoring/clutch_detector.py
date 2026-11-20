@@ -60,8 +60,8 @@ def group_multi_kills(events: list[ScoredEvent], cfg: GroupingConfig | None = No
             ),
         }
         lead.breakdown = {**lead.breakdown, "multi_kill_bonus": extra}
-        # Remove the absorbed kills so clips are not duplicated.
-        for member in group[1:]:
-            events.remove(member)
-            events_by_id.pop(id(member), None)
+        # Keep every individual kill. Dropping the absorbed kills used to make
+        # them vanish from persistence and from the final compilation; the
+        # compilation builder already merges overlapping windows into one
+        # segment, so no duplicate video section is produced.
     return events, promoted

@@ -84,7 +84,7 @@ def is_match(ocr_text: str, ign: str, threshold: float = 0.82) -> bool:
     return ign_match_score(ocr_text, ign) >= threshold
 
 
-def classify_feed_line(text: str, ign: str, threshold: float = 0.82) -> str:
+def classify_feed_line(text: str, ign: str, threshold: float = 0.75) -> str:
     """Classify a kill-feed line relative to the player's IGN.
 
     Returns one of: 'confirmed', 'possible', 'unrelated'.
@@ -94,9 +94,38 @@ def classify_feed_line(text: str, ign: str, threshold: float = 0.82) -> str:
     score = ign_match_score(text, ign)
     if score >= threshold:
         return "confirmed"
-    if score >= max(0.45, threshold - 0.25):
+    if score >= max(0.42, threshold - 0.33):
         return "possible"
     return "unrelated"
+
+
+# Words that belong to the HUD / counter, not to a kill-feed row identity.
+_HUD_WORDS = {
+    "alive", "killed", "kill", "assisted", "assist", "assists", "knocked",
+    "knock", "down", "dbno", "bleeding", "the", "and", "with", "vs",
+}
+
+
+def feed_entry_signature(text: str, ign: str) -> str:
+    """Stable identity of a kill-feed row, ignoring the changing HUD digits.
+
+    PUBG kill-feed rows look roughly like ``[attacker] X [victim]``. The
+    alive-counter and compass digits next to them change every second, so the
+    full OCR line cannot be used as a dedup key. We key on the IGN plus the
+    victim token(s) that follow it — those change when a *new* kill happens.
+    """
+    ign_n = normalize_text(ign)
+    tokens = re.split(r"[^A-Za-z0-9]+", str(text))
+    norm = [normalize_text(t) for t in tokens if t]
+    idx = next((i for i, t in enumerate(norm)
+                if t and (t == ign_n or (len(ign_n) >= 4 and ign_n in t))), None)
+    if idx is None:
+        return ign_n or "ign"
+    after = [
+        t for t in norm[idx + 1:]
+        if len(t) >= 3 and t not in _HUD_WORDS and not t.isdigit()
+    ]
+    return ign_n + "|" + "|".join(after[:2])
 
 
 def looks_like_knock(text: str) -> bool:

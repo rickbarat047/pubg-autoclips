@@ -6,8 +6,12 @@ from .event_scorer import ScoredEvent
 
 def rank_events(events: list[ScoredEvent], min_score: float = 0.0,
                 max_events: int | None = None,
-                min_gap_sec: float = 3.0) -> list[ScoredEvent]:
-    """Sort by score descending, drop near-duplicates and low scores."""
+                min_gap_sec: float = 0.8) -> list[ScoredEvent]:
+    """Sort by score descending, drop exact duplicates and low scores.
+
+    The gap is deliberately small: distinct eliminations can occur within a
+    couple of seconds and must survive ranking.
+    """
     ordered = sorted(events, key=lambda e: (-e.score, e.timestamp))
     kept: list[ScoredEvent] = []
     for e in ordered:

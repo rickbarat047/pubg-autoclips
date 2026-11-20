@@ -23,7 +23,9 @@ from ..utils.paths import app_cache_dir
 log = get_logger("clips.compilation")
 
 # Event categories that are always worth including when detected.
-PRIORITY_CATEGORIES = {"KILL", "MULTI_KILL", "CLUTCH_CANDIDATE"}
+PRIORITY_CATEGORIES = {
+    "KILL", "KNOCK", "KNOCK_CANDIDATE", "MULTI_KILL", "CLUTCH_CANDIDATE",
+}
 
 
 @dataclass
@@ -217,11 +219,14 @@ def category_counts(segments: list[Segment]) -> dict[str, int]:
         "confirmed_kills": 0,
         "multi_kills": 0,
         "clutch_candidates": 0,
+        "knocks": 0,
         "other": 0,
     }
     for seg in segments:
         if seg.category == "KILL":
             counts["confirmed_kills"] += 1
+        elif seg.category in ("KNOCK", "KNOCK_CANDIDATE"):
+            counts["knocks"] += 1
         elif seg.category == "MULTI_KILL":
             counts["multi_kills"] += 1
         elif seg.category == "CLUTCH_CANDIDATE":

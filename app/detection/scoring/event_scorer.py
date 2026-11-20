@@ -11,6 +11,8 @@ from ...detection.kill_feed.feed_detector import FeedEvent
 from ...detection.vision.activity_detector import ActivitySample
 
 CATEGORY_KILL = "KILL"
+CATEGORY_KNOCK = "KNOCK"
+CATEGORY_KNOCK_CANDIDATE = "KNOCK_CANDIDATE"
 CATEGORY_MULTI = "MULTI_KILL"
 CATEGORY_CLUTCH = "CLUTCH_CANDIDATE"
 CATEGORY_COMBAT = "COMBAT"
@@ -72,11 +74,17 @@ class EventScorer:
             b["confirmed_kill"] = self.w.confirmed_kill
             category = CATEGORY_KILL
         elif ev.category == "knock":
+            # Confirmed knock (feed text explicitly shows a knock indicator).
+            b["confirmed_kill"] = self.w.confirmed_kill * 0.6
+            category = CATEGORY_KNOCK
+        elif ev.category == "knock_candidate":
+            # Partial IGN match: likely a knock with garbled OCR. Never
+            # presented as a confirmed elimination.
             b["confirmed_kill"] = self.w.confirmed_kill * 0.5
-            category = CATEGORY_COMBAT
+            category = CATEGORY_KNOCK_CANDIDATE
         elif ev.category == "possible":
             b["confirmed_kill"] = self.w.confirmed_kill * 0.35
-            category = CATEGORY_COMBAT
+            category = CATEGORY_KNOCK_CANDIDATE
         else:  # uncertain
             b["confirmed_kill"] = self.w.confirmed_kill * 0.2
             category = CATEGORY_UNKNOWN

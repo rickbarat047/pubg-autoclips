@@ -132,6 +132,20 @@ def test_all_confirmed_kills_included_even_without_highlight(settings):
     assert [s.category for s in segs] == ["KILL", "KILL"]
 
 
+def test_knocks_are_included_in_compilation(settings):
+    from app.detection.scoring.event_scorer import CATEGORY_KNOCK
+    cfg = _cfg(settings)
+    events = [
+        _event(1, 100, "KILL", 0.9),
+        _event(2, 130, CATEGORY_KNOCK, 0.85),
+        _event(3, 160, "KNOCK_CANDIDATE", 0.7),
+    ]
+    segs = select_segments([], events, cfg, 600.0)
+    ids = {eid for s in segs for eid in s.event_ids}
+    assert {1, 2, 3} <= ids, ids
+    assert category_counts(segs)["knocks"] == 2
+
+
 def test_seven_kills_across_17_minutes_all_covered(settings):
     """17-minute match, 7 confirmed kills -> all 7 must be in the compilation."""
     cfg = _cfg(settings)
@@ -167,7 +181,7 @@ def test_category_counts():
             Segment(40, 50, "CLUTCH_CANDIDATE", 1, 1), Segment(60, 70, "COMBAT", 1, 1)]
     assert category_counts(segs) == {
         "confirmed_kills": 1, "multi_kills": 1,
-        "clutch_candidates": 1, "other": 1,
+        "clutch_candidates": 1, "knocks": 0, "other": 1,
     }
 
 

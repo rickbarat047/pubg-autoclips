@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Callable
 
 import cv2
@@ -12,7 +13,9 @@ from ...core.task_queue import CancellationToken
 from ...media.frame_extractor import FrameSample
 from ...media.video_reader import VideoReader
 from ...utils.logging import get_logger
-from .ign_matcher import classify_feed_line, looks_like_knock, normalize_text
+from .ign_matcher import (
+    classify_feed_line, feed_entry_signature, looks_like_knock,
+)
 from .ocr_engine import OcrEngine
 
 log = get_logger("detection.kill_feed")
@@ -123,12 +126,13 @@ class KillFeedDetector:
 
     def _process(self, t: float, text: str, ocr_conf: float, lines: list[str],
                  candidates: dict, last_emit: dict, cfg) -> FeedEvent | None:
-        """Confirm IGN sightings and emit at most one event per cooldown window.
+        """Confirm sightings per kill-feed ROW, not per global IGN.
 
-        The whole OCR line is deliberately NOT used as a dedup key: PUBG's
-        alive-counter and compass digits inside the same region change every
-        second, so a persistent kill-feed row never produces two identical
-        strings. We key on the (stable) IGN instead and use a time cooldown.
+        A single global cooldown suppressed any second kill that happened
+        within ``duplicate_window_sec`` (the classic "5th kill missing" bug).
+        Each distinct feed row now has its own confirmation state: a new row
+        emits as soon as it has been observed ``min_observations`` times, while
+        a persistent row is emitted only once until it disappears.
         """
         if not text:
             return None
@@ -136,37 +140,70 @@ class KillFeedDetector:
         if classification not in ("confirmed", "possible"):
             return None
         knock = looks_like_knock(text)
-        key = normalize_text(self.settings.ign) or "ign"
+        sig = feed_entry_signature(text, self.settings.ign)
         info = candidates.setdefault(
-            key, {"count": 0, "last": t, "emitted_at": -1e9})
+            sig, {"count": 0, "last": t, "emitted": False})
 
-        if t - info["emitted_at"] < cfg.duplicate_window_sec:
-            return None
         if t - info["last"] > max(3.0, cfg.sample_interval_sec * 2):
             info["count"] = 0  # a gap breaks the consecutive-observation run
         info["last"] = t
         info["count"] += 1
-        if info["count"] < cfg.min_observations:
+        if info["count"] < cfg.min_observations or info["emitted"]:
             return None
 
-        info["emitted_at"] = t
-        last_emit[key] = t
-        category = "confirmed" if classification == "confirmed" else "uncertain"
-        if classification == "confirmed" and knock:
-            category = "knock"
+        # A single feed row persists for several seconds and OCR reads its
+        # victim token slightly differently on successive frames. Compare the
+        # new row against recently emitted ones with fuzzy similarity: a
+        # clearly different victim means a genuinely new kill, even seconds
+        # later; the same row with jitter is suppressed.
+        recent: list[tuple[float, str]] = last_emit.setdefault("__recent__", [])
+        for prev_t, prev_sig in list(recent):
+            if t - prev_t > 45.0:
+                recent.remove((prev_t, prev_sig))
+                continue
+            victim = sig.split("|", 1)[1] if "|" in sig else sig
+            prev_victim = prev_sig.split("|", 1)[1] if "|" in prev_sig else prev_sig
+            if victim and prev_victim and (
+                    SequenceMatcher(None, victim, prev_victim).ratio() >= 0.68):
+                info["emitted"] = True
+                return None
+        recent.append((t, sig))
+
+        # Guard against two near-identical detections in the same second.
+        if t - last_emit.get("__any__", -1e9) < 1.5:
+            return None
+
+        info["emitted"] = True
+        last_emit[sig] = t
+        last_emit["__any__"] = t
+        if classification == "confirmed":
+            category = "knock" if knock else "confirmed"
+        else:
+            # Partial IGN match — usually a knock or a garbled row. Keep it as
+            # a low-confidence candidate with the evidence attached.
+            category = "knock_candidate"
         ev_conf = min(1.0, ocr_conf * (0.85 + 0.15 * min(info["count"], 4) / 4))
+        if category == "knock_candidate":
+            ev_conf *= 0.75
         return FeedEvent(
             timestamp=t, category=category, confidence=ev_conf,
             recognised_text=text[:200], ocr_confidence=ocr_conf,
-            observations=info["count"], signature=key,
+            observations=info["count"], signature=sig,
             evidence={"classification": classification, "knock_indicator": knock,
-                      "ign": self.settings.ign, "lines": lines},
+                      "ign": self.settings.ign, "lines": lines,
+                      "entry_signature": sig},
         )
 
     @staticmethod
     def _decay(candidates: dict, now: float, window: float) -> None:
-        for k in [k for k, v in candidates.items() if now - v["last"] > window]:
-            candidates.pop(k, None)
+        # An emitted row can stay on the HUD for 20-40 s. Keep its "emitted"
+        # state much longer than a new candidate, otherwise the same kill is
+        # reported again every few seconds.
+        emitted_window = max(60.0, window * 4)
+        for k, v in list(candidates.items()):
+            limit = emitted_window if v.get("emitted") else window
+            if now - v["last"] > limit:
+                candidates.pop(k, None)
 
     @staticmethod
     def _report(cb: ProgressCb | None, fraction: float, message: str) -> None:

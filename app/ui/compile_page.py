@@ -24,6 +24,8 @@ CATEGORY_COLORS = {
     "KILL": QColor("#7CFC00"),
     "MULTI_KILL": QColor("#B6FF3D"),
     "CLUTCH_CANDIDATE": QColor("#FFC542"),
+    "KNOCK": QColor("#FF8A5B"),
+    "KNOCK_CANDIDATE": QColor("#FFAB8A"),
     "COMBAT": QColor("#42C6FF"),
     "UNKNOWN": QColor("#9AA5AD"),
 }
@@ -274,6 +276,7 @@ class CompilePage(QWidget):
             f"Confirmed kills: <b>{counts['confirmed_kills']}</b> &nbsp;•&nbsp; "
             f"Multi-kills: <b>{counts['multi_kills']}</b> &nbsp;•&nbsp; "
             f"Clutch candidates: <b>{counts['clutch_candidates']}</b> &nbsp;•&nbsp; "
+            f"Knocks: <b>{counts['knocks']}</b> &nbsp;•&nbsp; "
             f"Other: <b>{counts['other']}</b><br>"
             f"Estimated duration: <b style='color:#7CFC00'>{total_duration(self.segments):.0f} s</b>"
             f" ({total_duration(self.segments)/60:.1f} min) &nbsp;•&nbsp; "

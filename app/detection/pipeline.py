@@ -172,9 +172,11 @@ class AnalysisPipeline:
     def _persist_events(self, match_id: int, job_id: int,
                         events: list[ScoredEvent]) -> None:
         import json
-        self.db.delete_events_for_job(job_id)
+        # Replace all events for this match so a re-analysis never leaves
+        # duplicates from an older job behind.
+        self.db.delete_events_for_match(match_id)
         for e in events:
-            self.db.add_event(
+            row = self.db.add_event(
                 match_id=match_id, job_id=job_id, timestamp=e.timestamp,
                 category=e.category, confidence=e.confidence, score=e.score,
                 source=e.source, recognised_text=e.recognised_text,
@@ -182,6 +184,9 @@ class AnalysisPipeline:
                 evidence_json=json.dumps(e.evidence, ensure_ascii=False),
                 manual=0, confirmed=int(e.category == "KILL" and e.confidence >= 0.6),
             )
+            # Keep the database id on the in-memory object so the highlight
+            # rows created afterwards can link back to their source event.
+            e.id = row.id
 
     def _persist_highlights(self, match_id: int, clips: list[ClipCandidate]) -> list[int]:
         self.db.delete_highlights_for_match(match_id)
