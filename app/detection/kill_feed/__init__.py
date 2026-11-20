@@ -1,0 +1,1 @@
+"""Kill-feed OCR subsystem."""

@@ -1,0 +1,1 @@
+"""Lightweight OpenCV visual analysis."""
