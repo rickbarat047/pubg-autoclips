@@ -124,8 +124,15 @@ class ExportManager:
             if token and token.is_cancelled():
                 from ..core.exceptions import CancelledError
                 raise CancelledError()
-            detail = result.stderr.strip()[-1200:] or "Unknown FFmpeg error"
-            raise ExportError(f"FFmpeg failed (exit {result.returncode}):\n{detail}")
+            detail = result.stderr.strip()[-1200:]
+            if not detail:
+                code = result.returncode
+                hint = (" (process terminated by a Windows control event — "
+                        "check that FFmpeg can run without a console)"
+                        if code < 0 or code > 0x7FFFFFFF else "")
+                detail = f"No stderr output from FFmpeg.{hint}"
+            raise ExportError(f"FFmpeg failed (exit {result.returncode}, "
+                              f"0x{result.returncode & 0xFFFFFFFF:08X}):\n{detail}")
         if not out.exists() or out.stat().st_size < 10_000:
             raise ExportError("FFmpeg produced an empty or missing output file.")
         return str(out)

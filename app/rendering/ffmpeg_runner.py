@@ -27,7 +27,8 @@ def run(cmd: list[str], token: CancellationToken | None = None,
     log.debug("Running: %s", " ".join(f'"{a}"' if " " in a else a for a in cmd))
     try:
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cmd, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", errors="replace",
         )
     except FileNotFoundError as exc:

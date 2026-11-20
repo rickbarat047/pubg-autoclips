@@ -34,6 +34,32 @@ def test_free_space():
     assert free_space_gb(".") > 0
 
 
+def test_run_uses_devnull_stdin(monkeypatch):
+    """Windowed apps have no valid console stdin; FFmpeg must not inherit it."""
+    import subprocess
+    from app.rendering.ffmpeg_runner import run
+    captured: dict = {}
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            captured.update(kwargs)
+            self.returncode = 0
+
+        def communicate(self, timeout=None):
+            return "", ""
+
+        def kill(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    result = run(["ffmpeg", "-version"])
+    assert result.ok
+    assert captured.get("stdin") == subprocess.DEVNULL
+
+
 def test_audio_preserved(tmp_path, settings):
     """Export must keep the original gameplay audio stream."""
     import subprocess

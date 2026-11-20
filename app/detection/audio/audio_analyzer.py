@@ -61,7 +61,8 @@ class AudioAnalyzer:
         buf = bytearray()
         idx = 0
         try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+            proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, bufsize=bytes_per_chunk * 4)
         except Exception as exc:  # noqa: BLE001
             log.warning("Could not start ffmpeg for audio: %s", exc)
