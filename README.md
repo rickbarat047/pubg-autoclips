@@ -54,7 +54,7 @@ rank highlight candidates. No cloud services, paid APIs or mandatory online AI.
 - Windows 11 64-bit
 - Python 3.11 64-bit (3.11.9 recommended)
 - FFmpeg + FFprobe (see below)
-- Target hardware: i5-12400F, RX 6500 XT, 16 GB RAM (CPU-only inference)
+- Target hardware: i5-12400F, RX 6700 XT, 16 GB RAM (CPU-only inference)
 
 ---
 
