@@ -41,8 +41,10 @@ def extract_frames(video_path: str, interval_sec: float,
         "-q:v", "5", "-frames:v", "5000", pattern,
     ]
     log.info("Extracting frames every %.1fs -> %s", interval_sec, out_dir)
+    flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            creationflags=flags, close_fds=True)
     try:
         _, err = proc.communicate(timeout=3600)
     except Exception:

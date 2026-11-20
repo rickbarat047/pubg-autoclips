@@ -58,6 +58,7 @@ def test_run_uses_devnull_stdin(monkeypatch):
     result = run(["ffmpeg", "-version"])
     assert result.ok
     assert captured.get("stdin") == subprocess.DEVNULL
+    assert captured.get("creationflags") & subprocess.CREATE_NEW_PROCESS_GROUP
 
 
 def test_audio_preserved(tmp_path, settings):

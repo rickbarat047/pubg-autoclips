@@ -26,10 +26,15 @@ def run(cmd: list[str], token: CancellationToken | None = None,
     """Execute a command as an argument list (never through a shell)."""
     log.debug("Running: %s", " ".join(f'"{a}"' if " " in a else a for a in cmd))
     try:
+        # A windowed PyInstaller app has no console. Without isolation, console
+        # control events (STATUS_CONTROL_C_EXIT / 0xC000013A) can kill FFmpeg
+        # instantly with no stderr. A fresh process group + no window avoids it.
+        flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         proc = subprocess.Popen(
             cmd, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", errors="replace",
+            creationflags=flags, close_fds=True,
         )
     except FileNotFoundError as exc:
         raise MissingFfmpegError(f"Executable not found: {cmd[0]}") from exc
