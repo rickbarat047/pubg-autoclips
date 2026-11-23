@@ -243,6 +243,38 @@ class DatabaseManager:
         with self.transaction() as conn:
             conn.execute("DELETE FROM highlights WHERE match_id=?", (match_id,))
 
+    # ---------- manual clip ranges (added by the user during review) ----------
+    def add_manual_segment(self, match_id: int, start: float, end: float,
+                           note: str = "") -> int:
+        with self.transaction() as conn:
+            cur = conn.execute(
+                "INSERT INTO manual_segments "
+                "(match_id, start, end, note, created_at) VALUES (?,?,?,?,?)",
+                (match_id, float(start), float(end), note, utcnow()),
+            )
+            return int(cur.lastrowid)
+
+    def list_manual_segments(self, match_id: int) -> list[dict]:
+        with self.transaction() as conn:
+            rows = conn.execute(
+                "SELECT id, match_id, start, end, note, created_at "
+                "FROM manual_segments WHERE match_id=? ORDER BY start",
+                (match_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_manual_segment(self, segment_id: int, start: float,
+                              end: float) -> None:
+        with self.transaction() as conn:
+            conn.execute(
+                "UPDATE manual_segments SET start=?, end=? WHERE id=?",
+                (float(start), float(end), segment_id),
+            )
+
+    def delete_manual_segment(self, segment_id: int) -> None:
+        with self.transaction() as conn:
+            conn.execute("DELETE FROM manual_segments WHERE id=?", (segment_id,))
+
     # ---------- exports ----------
     def add_export(self, **kwargs) -> Export:
         kwargs.setdefault("created_at", utcnow())

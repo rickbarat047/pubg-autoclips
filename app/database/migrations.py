@@ -102,6 +102,18 @@ MIGRATIONS: list[tuple[int, str]] = [
     CREATE INDEX IF NOT EXISTS idx_exports_match ON exports(match_id);
     CREATE INDEX IF NOT EXISTS idx_exports_type ON exports(export_type);
     """),
+    (3, """
+    CREATE TABLE IF NOT EXISTS manual_segments (
+        id INTEGER PRIMARY KEY,
+        match_id INTEGER NOT NULL,
+        start REAL NOT NULL,
+        end REAL NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_manual_segments_match
+        ON manual_segments(match_id);
+    """),
 ]
 
 
