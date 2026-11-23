@@ -16,6 +16,7 @@ from ..clips.compilation_builder import (
     Segment, category_counts, kill_coverage, select_segments, total_duration,
 )
 from ..utils.logging import get_logger
+from .video_player_dialog import VideoPlayerDialog
 from .widgets.common import Card, empty_state, section
 
 log = get_logger("ui.compile")
@@ -27,6 +28,7 @@ CATEGORY_COLORS = {
     "KNOCK": QColor("#FF8A5B"),
     "KNOCK_CANDIDATE": QColor("#FFAB8A"),
     "COMBAT": QColor("#42C6FF"),
+    "MANUAL": QColor("#FF5EDB"),
     "UNKNOWN": QColor("#9AA5AD"),
 }
 
@@ -35,14 +37,32 @@ class CompilationTimeline(QWidget):
     """Visual overview of the selected segments on the match timeline."""
 
     segment_selected = Signal(int)
+    segment_drag_created = Signal(float, float)
 
     def __init__(self) -> None:
         super().__init__()
         self.segments: list[Segment] = []
         self.match_duration = 1.0
         self.selected = -1
+        self._drag_start_x: float | None = None
+        self._drag_cur_x: float | None = None
         self.setMinimumHeight(96)
         self.setMouseTracking(True)
+
+    @staticmethod
+    def range_from_drag(x1: float, x2: float, duration: float) -> tuple[float, float] | None:
+        """Map two widget x positions to a clamped time range, or None if invalid."""
+        duration = max(0.0, float(duration))
+        start = min(max(0.0, float(x1)), duration)
+        end = min(max(0.0, float(x2)), duration)
+        if end < start:
+            start, end = end, start
+        if end - start <= 0.2 + 1e-9:
+            return None
+        return (start, end)
+
+    def _x_to_time(self, x: float) -> float:
+        return min(max(0.0, (x - 8) / max(1, self.width() - 16)), 1.0) * self.match_duration
 
     def set_data(self, segments: list[Segment], duration: float) -> None:
         self.segments = segments
@@ -66,6 +86,11 @@ class CompilationTimeline(QWidget):
             if sw > 34:
                 p.setPen(QColor("#10150A"))
                 p.drawText(x + 4, track_y + 18, f"{seg.start:.0f}s")
+        if self._drag_start_x is not None and self._drag_cur_x is not None:
+            dx1, dx2 = sorted((self._drag_start_x, self._drag_cur_x))
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 94, 219, 90))
+            p.drawRect(int(dx1), track_y, max(2, int(dx2 - dx1)), track_h)
         p.setPen(QColor("#7E8A92"))
         p.drawText(8, 22, "Match start")
         p.drawText(w - 78, 22, f"{self.match_duration / 60:.1f} min")
@@ -83,6 +108,27 @@ class CompilationTimeline(QWidget):
                 self.update()
                 self.segment_selected.emit(i)
                 return
+        # Empty space: begin a drag-to-add selection.
+        self.selected = -1
+        self._drag_start_x = x
+        self._drag_cur_x = x
+        self.update()
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._drag_start_x is not None:
+            self._drag_cur_x = event.position().x()
+            self.update()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if self._drag_start_x is None:
+            return
+        cur = event.position().x()
+        rng = self.range_from_drag(self._drag_start_x, cur, self.match_duration)
+        self._drag_start_x = None
+        self._drag_cur_x = None
+        self.update()
+        if rng:
+            self.segment_drag_created.emit(rng[0], rng[1])
 
 
 class SegmentRow(QWidget):
@@ -193,9 +239,17 @@ class CompilePage(QWidget):
         sl.addWidget(self.stats_lbl)
         lay.addWidget(stats_card)
 
+        # Inline player: preview any moment of the match before exporting.
+        self.player_host = QWidget()
+        player_lay = QVBoxLayout(self.player_host)
+        player_lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.player_host)
+        self._player: VideoPlayerDialog | None = None
+
         # Timeline + segment editor
         self.timeline = CompilationTimeline()
         self.timeline.segment_selected.connect(self._focus_segment)
+        self.timeline.segment_drag_created.connect(self._on_segment_drag)
         lay.addWidget(self.timeline)
 
         self.segment_host = QWidget()
@@ -220,10 +274,15 @@ class CompilePage(QWidget):
         self.folder_btn = QPushButton("Change output folder")
         self.folder_btn.setObjectName("ghost")
         self.folder_btn.clicked.connect(self._browse_folder)
+        self.add_range_btn = QPushButton("+ Add 20s here")
+        self.add_range_btn.setObjectName("ghost")
+        self.add_range_btn.setToolTip("Add the 20 seconds starting at the player position")
+        self.add_range_btn.clicked.connect(self.add_current_range)
         self.export_btn = QPushButton("Export compilation")
         self.export_btn.setObjectName("primary")
         self.export_btn.clicked.connect(lambda: self._export(preview=False))
         actions.addWidget(self.preview_btn)
+        actions.addWidget(self.add_range_btn)
         actions.addWidget(self.folder_btn)
         actions.addStretch()
         actions.addWidget(self.export_btn)
@@ -263,6 +322,16 @@ class CompilePage(QWidget):
         events = self.ctx.db.list_events(match_id)
         self.events = events
         self.segments = select_segments(highlights, events, self.ctx.settings, m.duration)
+        # Manually added ranges are always kept, even past the automatic clip
+        # cap — they exist precisely because the detector missed them.
+        for row in self.ctx.db.list_manual_segments(match_id):
+            self.segments.append(Segment(
+                start=float(row["start"]), end=float(row["end"]),
+                category="MANUAL", score=0.0, confidence=1.0,
+                evidence={"manual_id": row["id"]},
+                source_labels=["Added by you"],
+            ))
+        self._rebuild_player()
         self._rebuild_rows()
         self.refresh()
 
@@ -338,9 +407,46 @@ class CompilePage(QWidget):
 
     def _remove_segment(self, index: int) -> None:
         if 0 <= index < len(self.segments):
-            self.segments.pop(index)
+            seg = self.segments.pop(index)
+            manual_id = (seg.evidence or {}).get("manual_id")
+            if manual_id is not None:
+                self.ctx.db.delete_manual_segment(int(manual_id))
             self._rebuild_rows()
             self.refresh()
+
+    # ---------- manual review helpers ----------
+    def _rebuild_player(self) -> None:
+        """Embed a small player so any match moment can be previewed."""
+        while self.player_host.layout().count():
+            item = self.player_host.layout().takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._player = None
+        if not self.source_path:
+            return
+        try:
+            dlg = VideoPlayerDialog(self.source_path, parent=self)
+            dlg.setWindowFlags(Qt.Widget)
+            self.player_host.layout().addWidget(dlg)
+            self._player = dlg
+        except Exception:  # pragma: no cover - Qt backend failure
+            log.exception("Could not create review player")
+
+    def _on_segment_drag(self, start: float, end: float) -> None:
+        """Persist a manually dragged range and reload the review list."""
+        if self.match_id is None or end - start <= 0.2 + 1e-9:
+            return
+        self.ctx.db.add_manual_segment(self.match_id, start, end, "Added by you")
+        self.set_match(self.match_id)
+
+    def add_current_range(self) -> None:
+        """Add ~20s from the player's current position (simple fallback)."""
+        if self.match_id is None:
+            return
+        pos = self._player.position() if self._player else 0.0
+        start = max(0.0, min(pos, self.match_duration))
+        end = min(self.match_duration, start + 20.0)
+        self._on_segment_drag(start, end)
 
     def _focus_segment(self, index: int) -> None:
         for i, row in enumerate(getattr(self, "_rows", [])):
