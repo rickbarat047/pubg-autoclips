@@ -127,12 +127,12 @@ class ProcessingSettings(BaseModel):
 
 class AppSettings(BaseModel):
     """Top-level persistent settings."""
-    version: int = 5
+    version: int = 6
     onboarding_complete: bool = False
     ign: str = ""
     output_folder: str = Field(default_factory=default_output_folder)
     export_mode: ExportMode = "compilation"
-    auto_export: bool = True
+    auto_export: bool = False
     auto_export_max_clips: int = Field(5, ge=1, le=20)
     compilation: CompilationSettings = Field(default_factory=CompilationSettings)
     calibration: NormalizedRegion = Field(default_factory=NormalizedRegion)
@@ -202,6 +202,12 @@ class AppSettings(BaseModel):
                 if settings.compilation.merge_gap_sec == 2.0:
                     settings.compilation.merge_gap_sec = 6.0
                 settings.version = 5
+            if settings.version < 6:
+                # Review-before-export is the new default. Pydantic has already
+                # applied the new False default when `auto_export` was absent
+                # from the JSON, and preserved an explicit True if the user
+                # chose it. Only the schema version needs advancing.
+                settings.version = 6
             return settings
         except Exception:
             # Corrupt settings must never prevent startup.
