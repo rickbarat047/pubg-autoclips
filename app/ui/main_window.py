@@ -30,9 +30,11 @@ from .clips_page import ClipsPage
 from .compile_page import CompilePage
 from .dashboard import DashboardPage
 from .editor_page import EditorPage
+from .exported_clips_page import ExportedClipsPage
 from .import_page import ImportPage
 from .onboarding import OnboardingWizard
 from .settings_page import SettingsPage
+from .video_player_dialog import VideoPlayerDialog
 
 log = get_logger("ui.main")
 
@@ -40,12 +42,14 @@ log = get_logger("ui.main")
 PAGE_DASHBOARD, PAGE_IMPORT, PAGE_ANALYSIS = 0, 1, 2
 PAGE_CLIPS, PAGE_EDITOR, PAGE_EXPORT = 3, 4, 5
 PAGE_SETTINGS, PAGE_ABOUT = 6, 7
+PAGE_EXPORTED = 8
 
 NAV = [
-    ("Dashboard", "▦"), ("Import", "⬇"), ("Analysis", "◉"),
-    ("Highlights", "✦"), ("Editor", "✂"), ("Export", "⤓"),
-    ("Settings", "⚙"), ("About", "ⓘ"),
+    ("Dashboard", "▦"), ("Import", "⬇"), ("Exported Clips", "▤"),
 ]
+# Sidebar buttons map to stack pages; the other pages are reached
+# programmatically after analysis and are intentionally not in the sidebar.
+NAV_TARGETS = (PAGE_DASHBOARD, PAGE_IMPORT, PAGE_EXPORTED)
 
 
 class MainWindow(QMainWindow):
@@ -93,7 +97,7 @@ class MainWindow(QMainWindow):
         self.pages: list[QWidget] = [
             DashboardPage(self.ctx), ImportPage(self.ctx), AnalysisPage(),
             ClipsPage(self.ctx), EditorPage(self.ctx), CompilePage(self.ctx),
-            SettingsPage(self.ctx), AboutPage(),
+            SettingsPage(self.ctx), AboutPage(), ExportedClipsPage(self.ctx),
         ]
         for i, (name, icon) in enumerate(NAV):
             b = QPushButton(f"  {icon}   {name}")
@@ -128,19 +132,25 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Ready")
 
     def _connect(self) -> None:
-        self.nav_group.idClicked.connect(self.navigate)
+        self.nav_group.idClicked.connect(self._on_nav_clicked)
         dash: DashboardPage = self.pages[0]
+        self.dash = dash
         imp: ImportPage = self.pages[1]
         self.analysis: AnalysisPage = self.pages[PAGE_ANALYSIS]
         self.clips: ClipsPage = self.pages[PAGE_CLIPS]
         self.editor: EditorPage = self.pages[PAGE_EDITOR]
         self.compile: CompilePage = self.pages[PAGE_EXPORT]
         self.settings_page: SettingsPage = self.pages[PAGE_SETTINGS]
+        self.exported: ExportedClipsPage = self.pages[PAGE_EXPORTED]
         dash.import_requested.connect(lambda: self.navigate(PAGE_IMPORT))
+        dash.review_requested.connect(self.open_review)
+        dash.settings_requested.connect(lambda: self.navigate(PAGE_SETTINGS))
+        dash.about_requested.connect(lambda: self.navigate(PAGE_ABOUT))
+        self.exported.review_requested.connect(self.open_review)
         imp.match_ready.connect(self.start_analysis)
         self.analysis.cancel_requested.connect(self.cancel_analysis)
         self.analysis.pause_requested.connect(self.pause_analysis)
-        self.clips.preview_requested.connect(self.open_editor)
+        self.clips.play_requested.connect(self.open_player_for_highlight)
         self.clips.export_requested.connect(self.export_highlights)
         self.editor.export_requested.connect(self.export_edited)
         self.compile.compilation_requested.connect(self.start_compilation)
@@ -149,14 +159,44 @@ class MainWindow(QMainWindow):
         self.settings_page.settings_saved.connect(self._on_settings_saved)
 
     @Slot(int)
+    def _on_nav_clicked(self, nav_id: int) -> None:
+        """Translate sidebar button ids to stack page indexes."""
+        if 0 <= nav_id < len(NAV_TARGETS):
+            self.navigate(NAV_TARGETS[nav_id])
+
+    @Slot(int)
     def navigate(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
         if index == PAGE_DASHBOARD:
             self.pages[PAGE_DASHBOARD].refresh()
+        if index == PAGE_EXPORTED:
+            self.exported.refresh()
         if index == PAGE_CLIPS and self.current_match_id is not None:
             self.clips.set_match(self.current_match_id)
         if index == PAGE_EXPORT and self.current_match_id is not None:
             self.compile.set_match(self.current_match_id)
+
+    @Slot(int)
+    def open_review(self, match_id: int) -> None:
+        """Open the Review & Export page for a match (not in the sidebar)."""
+        self.current_match_id = match_id
+        self.navigate(PAGE_EXPORT)
+
+    @Slot(int)
+    def open_player_for_highlight(self, hid: int) -> None:
+        """Play a single highlight from the original recording."""
+        h = self.ctx.db.get_highlight(hid)
+        if h is None:
+            return
+        m = self.ctx.db.get_match(h.match_id)
+        if m is None or not m.path:
+            QMessageBox.warning(self, "Video not found",
+                                "The source recording for this highlight is missing.")
+            return
+        dlg = VideoPlayerDialog(m.path, start=h.start, end=h.end, parent=self)
+        dlg.setWindowTitle(f"Clip preview — {Path(m.name).stem}")
+        dlg.show()
+        self._player_dialog = dlg  # keep a reference alive
 
     def open_calibration(self) -> None:
         dlg = CalibrationDialog(self.ctx.settings.calibration, self)
@@ -223,6 +263,10 @@ class MainWindow(QMainWindow):
             f"Analysis complete — {len(result.events)} events, {len(result.clips)} candidates")
         if self._current_job_id is not None:
             self.ctx.jobs.unregister(self._current_job_id)
+        # Always land on the review step so the user can play and adjust clips.
+        # Explicit auto-export (advanced setting) still runs in the background.
+        if self.current_match_id is not None:
+            self.open_review(self.current_match_id)
         if self.ctx.settings.auto_export and getattr(result, "highlight_ids", None):
             if self.ctx.settings.export_mode == "compilation":
                 self.statusBar().showMessage("Auto-building highlight compilation…")

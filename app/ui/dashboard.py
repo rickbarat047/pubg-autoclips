@@ -13,6 +13,9 @@ from .widgets.common import Card, empty_state, section_header, stat_card
 
 class DashboardPage(QWidget):
     import_requested = Signal()
+    review_requested = Signal(int)
+    settings_requested = Signal()
+    about_requested = Signal()
 
     def __init__(self, ctx: AppContext) -> None:
         super().__init__()
@@ -54,7 +57,30 @@ class DashboardPage(QWidget):
         self.out_lbl.setWordWrap(True)
         il.addWidget(self.ign_lbl); il.addWidget(self.out_lbl)
         self.side.addWidget(info)
+
+        # Quick actions — the review step and settings no longer live in the
+        # sidebar, so expose them here in plain language.
+        actions = Card()
+        al = QVBoxLayout(actions)
+        al.setContentsMargins(18, 16, 18, 16)
+        al.addWidget(section_header("Quick actions")[0])
+        self.review_btn = QPushButton("Review latest match")
+        self.review_btn.setObjectName("primary")
+        self.review_btn.setEnabled(False)
+        self.review_btn.clicked.connect(self._on_review_clicked)
+        al.addWidget(self.review_btn)
+        links = QHBoxLayout()
+        settings_link = QPushButton("Settings")
+        settings_link.setObjectName("ghost")
+        settings_link.clicked.connect(self.settings_requested.emit)
+        about_link = QPushButton("About")
+        about_link.setObjectName("ghost")
+        about_link.clicked.connect(self.about_requested.emit)
+        links.addWidget(settings_link); links.addWidget(about_link)
+        al.addLayout(links)
+        self.side.addWidget(actions)
         self.side.addStretch()
+        self._latest_match: int | None = None
         body.addLayout(self.side, 1)
         lay.addLayout(body)
         self.refresh()
@@ -87,7 +113,14 @@ class DashboardPage(QWidget):
                         f"{m.width}×{m.height}   •   {m.status}")
                 self.recent.addItem(QListWidgetItem(text))
 
+        self._latest_match = matches[0].id if matches else None
+        self.review_btn.setEnabled(self._latest_match is not None)
+
         s = self.ctx.settings
         self.ign_lbl.setText(f"In-game name: <b style='color:#7CFC00'>{s.ign or 'Not set'}</b>")
         self.ign_lbl.setTextFormat(Qt.RichText)
         self.out_lbl.setText(f"Output folder:\n{s.output_folder or 'Not configured'}")
+
+    def _on_review_clicked(self) -> None:
+        if self._latest_match is not None:
+            self.review_requested.emit(self._latest_match)
