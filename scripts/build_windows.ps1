@@ -41,11 +41,21 @@ $pyiArgs.Add('rapidocr_onnxruntime')
 
 foreach ($mod in @(
     'rapidocr_onnxruntime', 'onnxruntime', 'scipy.stats', 'soundfile',
-    'PySide6.QtCore', 'PySide6.QtWidgets', 'PySide6.QtGui'
+    'PySide6.QtCore', 'PySide6.QtWidgets', 'PySide6.QtGui',
+    'PySide6.QtMultimedia', 'PySide6.QtMultimediaWidgets'
 )) {
     $pyiArgs.Add('--hidden-import')
     $pyiArgs.Add($mod)
 }
+# Qt Multimedia is only imported by the review/clip player dialogs, so the
+# default analysis build never pulled in its plugins. Collect the modules and
+# the Qt plugin directory (mediaservice) explicitly.
+foreach ($mod in @('PySide6.QtMultimedia', 'PySide6.QtMultimediaWidgets')) {
+    $pyiArgs.Add('--collect-submodules')
+    $pyiArgs.Add($mod)
+}
+$pyiArgs.Add('--collect-data')
+$pyiArgs.Add('PySide6')
 $pyiArgs.Add('--collect-submodules')
 $pyiArgs.Add('app')
 $pyiArgs.Add('app/main.py')
