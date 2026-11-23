@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (
@@ -79,9 +79,12 @@ class VideoPlayerDialog(QDialog):
 
         self.play_button.setEnabled(True)
         self.seek_slider.setEnabled(True)
+        # QMediaPlayer ignores setPosition() until the source has finished
+        # loading (durationChanged). Keep a pending seek and apply it then.
+        self._pending_seek_ms: int | None = None
         self.player.setSource(QUrl.fromLocalFile(self.video_path))
         if self.start_sec > 0:
-            self.player.setPosition(int(self.start_sec * 1000))
+            self.seek(self.start_sec)
 
     # -- public API used by callers -----------------------------------------
     def play(self) -> None:
@@ -108,9 +111,45 @@ class VideoPlayerDialog(QDialog):
         """Current playback position in seconds (used by the review page)."""
         return self.player.position() / 1000.0
 
+    def seek(self, seconds: float) -> None:
+        """Jump to an absolute position in seconds (used for marker/drag seek)."""
+        if self.player.source().isEmpty():
+            return
+        ms = int(max(0.0, float(seconds)) * 1000)
+        # Before the media is ready Qt drops setPosition; remember it and
+        # apply on durationChanged once the source has actually loaded.
+        if self._duration_ms <= 0:
+            self._pending_seek_ms = ms
+            self.player.setPosition(ms)
+            return
+        # Some Windows Qt backends ignore setPosition() while the player is
+        # stopped, and play() starts asynchronously -- setting the position in
+        # the same tick is also dropped. Brief playback, then commit on a
+        # short timer so the media pipeline is actually running.
+        was_playing = self.player.playbackState() == QMediaPlayer.PlayingState
+        if was_playing:
+            self.player.setPosition(ms)
+        else:
+            self.player.play()
+            QTimer.singleShot(150, lambda: self._commit_seek(ms))
+
+    def _commit_seek(self, ms: int) -> None:
+        """Apply a deferred seek once the player has left the stopped state."""
+        if self.player.source().isEmpty():
+            return
+        self.player.setPosition(ms)
+        if self.player.playbackState() == QMediaPlayer.PlayingState:
+            QTimer.singleShot(100, self.player.pause)
+
     # -- Qt slots -----------------------------------------------------------
     def _on_duration(self, ms: int) -> None:
         self._duration_ms = ms
+        if ms > 0 and getattr(self, "_pending_seek_ms", None) is not None:
+            pending_ms = self._pending_seek_ms
+            self._pending_seek_ms = None
+            # Route through seek(): a raw setPosition() is ignored while the
+            # Qt player is stopped (observed on the Windows backend).
+            self.seek(pending_ms / 1000.0)
 
     def _on_position(self, ms: int) -> None:
         if self.end_sec is not None and ms >= int(self.end_sec * 1000):

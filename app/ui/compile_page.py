@@ -38,6 +38,7 @@ class CompilationTimeline(QWidget):
 
     segment_selected = Signal(int)
     segment_drag_created = Signal(float, float)
+    drag_preview = Signal(float)
 
     def __init__(self) -> None:
         super().__init__()
@@ -57,7 +58,7 @@ class CompilationTimeline(QWidget):
         end = min(max(0.0, float(x2)), duration)
         if end < start:
             start, end = end, start
-        if end - start <= 0.2 + 1e-9:
+        if end - start <= 0.5 + 1e-9:
             return None
         return (start, end)
 
@@ -117,13 +118,19 @@ class CompilationTimeline(QWidget):
     def mouseMoveEvent(self, event) -> None:
         if self._drag_start_x is not None:
             self._drag_cur_x = event.position().x()
+            # Seek the preview player as the user drags so they can see the
+            # footage they are selecting before they release the mouse.
+            self.drag_preview.emit(self._x_to_time(self._drag_cur_x))
             self.update()
 
     def mouseReleaseEvent(self, event) -> None:
         if self._drag_start_x is None:
             return
         cur = event.position().x()
-        rng = self.range_from_drag(self._drag_start_x, cur, self.match_duration)
+        # Convert widget pixels to timeline seconds before validating — the
+        # timeline is drawn with an 8px margin on each side (see paintEvent).
+        rng = self.range_from_drag(self._x_to_time(self._drag_start_x),
+                                   self._x_to_time(cur), self.match_duration)
         self._drag_start_x = None
         self._drag_cur_x = None
         self.update()
@@ -136,10 +143,14 @@ class SegmentRow(QWidget):
 
     changed = Signal()
     remove_requested = Signal()
+    # manual_id, new_start, new_end — emitted after a manual row is edited so
+    # the page can persist the change to SQLite.
+    edited = Signal(int, float, float)
 
     def __init__(self, index: int, segment: Segment, match_duration: float) -> None:
         super().__init__()
         self.segment = segment
+        self.manual_id = (segment.evidence or {}).get("manual_id")
         lay = QHBoxLayout(self)
         lay.setContentsMargins(8, 6, 8, 6)
         lay.setSpacing(8)
@@ -175,6 +186,8 @@ class SegmentRow(QWidget):
             return
         self.segment.start = round(value, 3)
         self.changed.emit()
+        if self.manual_id is not None:
+            self.edited.emit(self.manual_id, self.segment.start, self.segment.end)
 
     def _on_end(self, value: float) -> None:
         if value <= self.start_sb.value() + 1:
@@ -182,6 +195,8 @@ class SegmentRow(QWidget):
             return
         self.segment.end = round(value, 3)
         self.changed.emit()
+        if self.manual_id is not None:
+            self.edited.emit(self.manual_id, self.segment.start, self.segment.end)
 
 
 class CompilePage(QWidget):
@@ -250,6 +265,7 @@ class CompilePage(QWidget):
         self.timeline = CompilationTimeline()
         self.timeline.segment_selected.connect(self._focus_segment)
         self.timeline.segment_drag_created.connect(self._on_segment_drag)
+        self.timeline.drag_preview.connect(self._preview_drag)
         lay.addWidget(self.timeline)
 
         self.segment_host = QWidget()
@@ -401,6 +417,8 @@ class CompilePage(QWidget):
         for i, seg in enumerate(self.segments):
             row = SegmentRow(i + 1, seg, self.match_duration)
             row.changed.connect(self.refresh)
+            if row.manual_id is not None:
+                row.edited.connect(self._persist_manual_edit)
             row.remove_requested.connect(lambda idx=i: self._remove_segment(idx))
             self.segment_layout.addWidget(row)
             self._rows.append(row)
@@ -413,6 +431,13 @@ class CompilePage(QWidget):
                 self.ctx.db.delete_manual_segment(int(manual_id))
             self._rebuild_rows()
             self.refresh()
+
+    def _persist_manual_edit(self, manual_id: int, start: float, end: float) -> None:
+        """Save a manual segment's edited bounds to SQLite immediately."""
+        try:
+            self.ctx.db.update_manual_segment(int(manual_id), start, end)
+        except Exception:
+            log.exception("Could not persist manual segment edit")
 
     # ---------- manual review helpers ----------
     def _rebuild_player(self) -> None:
@@ -434,7 +459,7 @@ class CompilePage(QWidget):
 
     def _on_segment_drag(self, start: float, end: float) -> None:
         """Persist a manually dragged range and reload the review list."""
-        if self.match_id is None or end - start <= 0.2 + 1e-9:
+        if self.match_id is None or end - start <= 0.5 + 1e-9:
             return
         self.ctx.db.add_manual_segment(self.match_id, start, end, "Added by you")
         self.set_match(self.match_id)
@@ -448,10 +473,18 @@ class CompilePage(QWidget):
         end = min(self.match_duration, start + 20.0)
         self._on_segment_drag(start, end)
 
+    def _preview_drag(self, seconds: float) -> None:
+        """Seek the inline player while the user drags on the timeline."""
+        if self._player is not None:
+            self._player.seek(seconds)
+
     def _focus_segment(self, index: int) -> None:
         for i, row in enumerate(getattr(self, "_rows", [])):
             row.setStyleSheet(
                 "border:1px solid #7CFC00; border-radius:6px;" if i == index else "")
+        # Seek the player to the clicked marker so the user sees that moment.
+        if 0 <= index < len(self.segments) and self._player is not None:
+            self._player.seek(self.segments[index].start)
 
     def _browse_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(

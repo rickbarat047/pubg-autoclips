@@ -14,6 +14,7 @@ from .widgets.common import Card, empty_state, section_header, stat_card
 class DashboardPage(QWidget):
     import_requested = Signal()
     review_requested = Signal(int)
+    highlights_requested = Signal()
     settings_requested = Signal()
     about_requested = Signal()
 
@@ -69,6 +70,11 @@ class DashboardPage(QWidget):
         self.review_btn.setEnabled(False)
         self.review_btn.clicked.connect(self._on_review_clicked)
         al.addWidget(self.review_btn)
+        self.highlights_btn = QPushButton("All highlights")
+        self.highlights_btn.setObjectName("ghost")
+        self.highlights_btn.setToolTip("Play every detected clip from the original recording")
+        self.highlights_btn.clicked.connect(self.highlights_requested.emit)
+        al.addWidget(self.highlights_btn)
         links = QHBoxLayout()
         settings_link = QPushButton("Settings")
         settings_link.setObjectName("ghost")

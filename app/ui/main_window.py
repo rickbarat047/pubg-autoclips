@@ -144,6 +144,7 @@ class MainWindow(QMainWindow):
         self.exported: ExportedClipsPage = self.pages[PAGE_EXPORTED]
         dash.import_requested.connect(lambda: self.navigate(PAGE_IMPORT))
         dash.review_requested.connect(self.open_review)
+        dash.highlights_requested.connect(lambda: self.navigate(PAGE_CLIPS))
         dash.settings_requested.connect(lambda: self.navigate(PAGE_SETTINGS))
         dash.about_requested.connect(lambda: self.navigate(PAGE_ABOUT))
         self.exported.review_requested.connect(self.open_review)
