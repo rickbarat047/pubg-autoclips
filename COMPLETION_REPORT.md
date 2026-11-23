@@ -26,11 +26,14 @@
   - Clip selection with pre/post-roll, 20–60 s bounds, overlap merging and
     duplicate removal.
   - Pause/resume and cancel via cancellation tokens.
-- **UI**: Premium dark-charcoal/electric-lime theme, sidebar navigation,
-  dashboard with live DB statistics, import page, analysis progress page,
-  highlight gallery with thumbnails/filters/keep-discard, clip editor with
-  timeline scrubbing and approximate vertical preview, comprehensive settings,
-  About page.
+- **UI**: Premium dark-charcoal/electric-lime theme with a simple three-item
+  sidebar (Dashboard, Import, Exported Clips) so new users are never lost.
+  Dashboard has live DB statistics plus a "Review latest match" shortcut and
+  small Settings/About access; import and analysis progress pages; highlight
+  gallery with thumbnails/filters/keep-discard and a ▶ Play button on every
+  card that opens the real clip from the original recording; a Review & Export
+  page that opens automatically after analysis with an inline player, a
+  full-match timeline and editable segments; comprehensive settings; About.
 - **Rendering/export**: FFmpeg vertical layouts (blurred background default,
   crop, pillarbox, original-aspect), 1080×1920/30 FPS/H.264/AAC, original
   gameplay audio preserved, path-with-spaces safe, encoder capability detection
@@ -41,8 +44,10 @@
   confirmed-kill prioritisation, chronological ordering (optional by score),
   short audio fades, stream-copy concat with re-encode fallback, full output
   verification and temp cleanup. Separate individual clips remain an optional
-  mode. Dedicated Export page with stats, timeline, editable segments, preview,
-  Open Folder and Play Video actions.
+  mode. Review & Export page with stats, full-match player, timeline,
+  editable segments, drag-to-add manual ranges, preview, Open Folder and Play
+  Video actions. Exported Clips page lists finished videos with Play and
+  Open Folder.
 - **Services named in the spec**: `ProjectManager`, `JobManager`, `TaskQueue`,
   `EventBus`, `DatabaseManager`, `MediaProbe`, `AnalysisPipeline`,
   `HighlightScoringEngine` (alias of `EventScorer`), `ClipSelector`,
@@ -76,16 +81,18 @@ installed to `bin/`.
 
 ## 4. Tests executed and results
 
-- `python -m pytest -q` → **77 passed** (including 7-kill coverage, compilation planning,
+- `python -m pytest -q` → **88 passed** (including 7-kill coverage, compilation planning,
   chronological ordering, overlap merging, duplicate removal, pre/post
   boundaries, FFmpeg concatenation, audio preservation, output resolution,
   integrity, temp cleanup, failed-export recovery, FFprobe metadata, validation,
   IGN normalisation/matching, OCR duplicate suppression with fake OCR, event
   scoring, grouping/ranking, clip boundaries/merging/deduplication, SQLite
   persistence, cancellation tokens, end-to-end pipeline on synthetic footage,
-  FFmpeg vertical render + validation + audio preservation, plus 9 new
-  regression tests for the missed-knock fixes in `tests/test_missing_knocks.py`).
-- GUI smoke tests: offscreen construction of all 7 pages, onboarding wizard and
+  FFmpeg vertical render + validation + audio preservation, 9 missed-knock
+  regression tests in `tests/test_missing_knocks.py`, and 10 review/manual-clip
+  tests (manual segment persistence, player dialog, play button, review page
+  drag-to-add, exported clips page, navigation flow).
+- GUI smoke tests: offscreen construction of all 9 pages, onboarding wizard and
   calibration dialog; real Windows launch with auto-quit — all succeeded.
 - Real RapidOCR smoke test: read `"TESTPLAYER killed BOT"` from a synthetic
   frame with confidence 1.0.
@@ -98,6 +105,11 @@ installed to `bin/`.
   at ~866/872/952/958 s, per-row OCR confidence 0.65–0.85. End-to-end compilation
   of 10 segments covered 11/11 feed events; output verified 1080×1920, 30 FPS,
   H.264/AAC, 167 s, 5010 frames, 121 MB with a clean full decode (0 errors).
+- **Manual-range verification (2026-11-24)**: a missed-moment range added on the
+  Review & Export page (700–720 s) was persisted in SQLite across a fresh DB
+  connection, appeared in the segment list labelled "Added by you", and was
+  included in an 11-segment compilation. Output verified 1080×1920, 30 FPS,
+  H.264/AAC, 187 s, 5610 frames with a clean full decode (0 errors).
 
 No PUBG-specific accuracy claim is made: kill vs knock is distinguished by feed
 icons rather than text, so events are reported with confidence and evidence

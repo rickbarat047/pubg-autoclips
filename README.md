@@ -351,12 +351,45 @@ Re-analysed a real 26-minute recording (`2026-11-18 21-23-06.mp4`, 1598 s,
 - End-to-end compilation: **10 segments, 11/11 feed events covered**, rendered to
   a 1080x1920 / 30 fps / H.264 + AAC MP4 (167 s, 5010 frames, 121 MB) that
   passes a clean full decode.
-- Full test suite: **77 passed**.
+- Full test suite: **88 passed**.
 
-All 77 tests pass and the output decodes without errors. Note that the PUBG feed
+All 88 tests pass and the output decodes without errors. Note that the PUBG feed
 uses icons (not words) to distinguish a knock from a kill, so OCR cannot reliably
 label that difference; events are reported by confidence, not as a verified
 knock/kill count.
+
+### Review & Export workflow (play, adjust, then export)
+
+The end of the workflow is now a single calm review step. Design and plan are in
+`docs/superpowers/specs/` and `docs/superpowers/plans/`.
+
+- The sidebar has only three items: **Dashboard**, **Import**, and **Exported
+  Clips**. Highlights, Editor and Export no longer clutter the navigation — they
+  happen as part of reviewing a finished analysis. Settings and About are one
+  click away from the Dashboard.
+- Every highlight card has a **▶ Play** button that opens a small player on the
+  original recording, so you can watch a moment before deciding to export it.
+- After analysis the app **opens the Review & Export page automatically**. It
+  shows a player for the whole match, a full-match timeline with coloured
+  markers for every detected segment, and the editable segment list.
+- **Missed a knock?** Drag on any empty part of the timeline to select that
+  range (the player seeks as you drag). You can also click **+ Add 20s here** to
+  grab the 20 seconds at the current playhead. Manually added segments are
+  labelled **"Added by you"** in magenta.
+- Manual ranges are saved in SQLite (`manual_segments` table) and survive
+  restarts. They are always included in the export and are never dropped by the
+  automatic clip limit. Clicking a marker seeks the player; each row has editable
+  start/end times and a Remove button.
+- Auto-export now defaults **off** so you review first. If you explicitly enable
+  it in Settings, it still runs in the background after analysis.
+- **Exported Clips** lists finished videos with Play / Open Folder actions and a
+  "Review latest match" shortcut.
+
+Verified against real footage: a manual range added via the Review page was
+persisted across a fresh database connection, included in an 11-segment
+compilation, and exported to a 1080x1920 / 30 fps / H.264 + AAC MP4 that passed a
+clean full decode. The frozen `.exe` bundles the Qt Multimedia plugins needed by
+the player.
 
 ### Troubleshooting: Windows Smart App Control blocks the app
 
