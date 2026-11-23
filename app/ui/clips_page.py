@@ -20,7 +20,7 @@ CATEGORY_FILTERS = ["All", "KILL", "MULTI_KILL", "CLUTCH_CANDIDATE", "COMBAT", "
 
 
 class ClipCard(Card):
-    preview_requested = Signal(int)
+    play_requested = Signal(int)
     toggled_keep = Signal(int, bool)
 
     def __init__(self, highlight, video_path: str, parent=None) -> None:
@@ -52,10 +52,11 @@ class ClipCard(Card):
         row = QHBoxLayout()
         self.export_chk = QCheckBox("Export")
         self.export_chk.setChecked(self.keep)
-        prev = QPushButton("Preview")
-        prev.setObjectName("ghost")
-        prev.clicked.connect(lambda: self.preview_requested.emit(self.hid))
-        row.addWidget(self.export_chk); row.addStretch(); row.addWidget(prev)
+        self.play_button = QPushButton("▶ Play")
+        self.play_button.setObjectName("primary")
+        self.play_button.setToolTip("Play this clip from the original recording")
+        self.play_button.clicked.connect(lambda: self.play_requested.emit(self.hid))
+        row.addWidget(self.export_chk); row.addStretch(); row.addWidget(self.play_button)
         lay.addLayout(row)
         self.export_chk.toggled.connect(self._on_keep)
 
@@ -75,6 +76,9 @@ class ClipCard(Card):
 
 
 class ClipsPage(QWidget):
+    play_requested = Signal(int)
+    # Temporary alias: MainWindow still wires this to the old Editor page.
+    # Task 7 removes both this signal and that connection.
     preview_requested = Signal(int)
     export_requested = Signal(list)
 
@@ -140,7 +144,8 @@ class ClipsPage(QWidget):
             if not m:
                 continue
             card = ClipCard(h, m.path)
-            card.preview_requested.connect(self.preview_requested.emit)
+            card.play_requested.connect(self.play_requested.emit)
+            card.play_requested.connect(self.preview_requested.emit)  # T7 removes
             card.toggled_keep.connect(self._on_keep)
             self.cards[h.id] = card
             self.grid.addWidget(card, i // 3, i % 3)
