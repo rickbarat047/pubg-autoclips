@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
@@ -18,6 +18,11 @@ class OcrResult:
     text: str
     confidence: float
     raw_lines: list[str]
+    # Confidence of each individual line, parallel to ``raw_lines``. The
+    # region-level ``confidence`` is the max of these, but a kill-feed event
+    # must use the confidence of the line that actually matched the IGN —
+    # otherwise a crisp HUD number can make a garbled name look certain.
+    line_scores: list[float] = field(default_factory=list)
 
 
 class OcrEngine:
@@ -82,6 +87,7 @@ class OcrEngine:
         if not result:
             return OcrResult("", 0.0, [])
         lines: list[str] = []
+        scores: list[float] = []
         best_score = 0.0
         for item in result:
             # RapidOCR returns [box, text, score]
@@ -92,15 +98,19 @@ class OcrEngine:
                 continue
             if text.strip():
                 lines.append(text.strip())
+                scores.append(score)
                 best_score = max(best_score, score)
-        return OcrResult(" ".join(lines), best_score, lines)
+        return OcrResult(" ".join(lines), best_score, lines, scores)
 
     def recognize_rows(self, region: np.ndarray) -> OcrResult:
-        """OCR each bright text row separately, upscaled.
+        """OCR every bright text row separately, upscaled, and return them all.
 
         Knock-feed rows are dimmer and smaller than kill rows. Detecting the
         horizontal text bands and feeding enlarged strips to the recogniser
-        recovers names that whole-region OCR misses.
+        recovers names that whole-region OCR misses. Returning *all* bands (not
+        just the single most confident one) matters: the highest-confidence
+        band is often the HUD alive-counter, while the IGN sits in a dimmer
+        row above it. Dropping that row was a direct cause of missed knocks.
         """
         if region is None or region.size == 0:
             return OcrResult("", 0.0, [])
@@ -122,8 +132,9 @@ class OcrEngine:
         if not bands:
             return OcrResult("", 0.0, [])
 
-        best = OcrResult("", 0.0, [])
-        for y1, y2 in bands[:8]:
+        all_lines: list[str] = []
+        all_scores: list[float] = []
+        for y1, y2 in bands[:10]:
             strip = region[max(0, y1 - 4):min(height, y2 + 4), :]
             if strip.size == 0:
                 continue
@@ -133,9 +144,11 @@ class OcrEngine:
                 result = self.recognize(enlarged)
             except Exception:  # noqa: BLE001
                 continue
-            if result.confidence > best.confidence:
-                best = result
-        return best
+            all_lines.extend(result.raw_lines)
+            all_scores.extend(result.line_scores)
+        if not all_lines:
+            return OcrResult("", 0.0, [])
+        return OcrResult(" ".join(all_lines), max(all_scores), all_lines, all_scores)
 
     def is_ready(self) -> bool:
         return self._engine is not None

@@ -108,16 +108,49 @@ _HUD_WORDS = {
 }
 
 
-def feed_entry_signature(text: str, ign: str) -> str:
+def best_matching_line(ign: str, text: str, lines: list[str] | None = None,
+                       line_scores: list[float] | None = None) -> tuple[str, float, float]:
+    """Return ``(line, ign_score, ocr_confidence)`` for the best matching row.
+
+    OCR of the calibrated region returns several HUD/feed rows joined together.
+    Scoring the blob as a whole makes a crisp "ALIVE 42" line lend false
+    confidence to a garbled name. This picks the individual row that actually
+    matches the IGN and returns *that* row's OCR confidence.
+    """
+    ign_n = normalize_text(ign)
+    candidates = list(lines) if lines else ([text] if text else [])
+    if not candidates:
+        return "", 0.0, 0.0
+    best_line, best_score = "", 0.0
+    for i, line in enumerate(candidates):
+        s = ign_match_score(line, ign)
+        if s > best_score:
+            best_score, best_line = s, line
+    conf = 0.0
+    if line_scores:
+        # Prefer the confidence reported for the chosen line when available.
+        if best_line in candidates:
+            idx = candidates.index(best_line)
+            if idx < len(line_scores):
+                conf = float(line_scores[idx])
+    return best_line, best_score, conf
+
+
+def feed_entry_signature(text: str, ign: str, line: str | None = None) -> str:
     """Stable identity of a kill-feed row, ignoring the changing HUD digits.
 
     PUBG kill-feed rows look roughly like ``[attacker] X [victim]``. The
     alive-counter and compass digits next to them change every second, so the
     full OCR line cannot be used as a dedup key. We key on the IGN plus the
     victim token(s) that follow it — those change when a *new* kill happens.
+
+    ``line`` should be the single best-matching feed row (from
+    :func:`best_matching_line`). Passing the whole multi-row blob used to pick
+    a victim from the wrong row and collapse distinct kills into one event.
     """
     ign_n = normalize_text(ign)
-    tokens = re.split(r"[^A-Za-z0-9]+", str(text))
+    source = line if line is not None else text
+    tokens = re.split(r"[^A-Za-z0-9]+", str(source))
     norm = [normalize_text(t) for t in tokens if t]
     idx = next((i for i, t in enumerate(norm)
                 if t and (t == ign_n or (len(ign_n) >= 4 and ign_n in t))), None)
@@ -128,6 +161,13 @@ def feed_entry_signature(text: str, ign: str) -> str:
         if len(t) >= 3 and t not in _HUD_WORDS and not t.isdigit()
     ]
     return ign_n + "|" + "|".join(after[:2])
+
+
+def victim_of(signature: str) -> str:
+    """Return the victim portion of a signature, or '' when it has none."""
+    if "|" not in signature:
+        return ""
+    return signature.split("|", 1)[1]
 
 
 def looks_like_knock(text: str) -> bool:

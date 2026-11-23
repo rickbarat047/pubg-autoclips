@@ -14,7 +14,8 @@ from ...media.frame_extractor import FrameSample
 from ...media.video_reader import VideoReader
 from ...utils.logging import get_logger
 from .ign_matcher import (
-    classify_feed_line, feed_entry_signature, ign_match_score, looks_like_knock,
+    best_matching_line, classify_feed_line, feed_entry_signature,
+    ign_match_score, looks_like_knock, normalize_text, victim_of,
 )
 from .ocr_engine import OcrEngine
 
@@ -79,7 +80,8 @@ class KillFeedDetector:
                 continue
 
             event = self._process(t, ocr_res.text, ocr_res.confidence,
-                                  ocr_res.raw_lines, candidates, last_emit, cfg)
+                                  ocr_res.raw_lines, ocr_res.line_scores,
+                                  candidates, last_emit, cfg)
             if event:
                 events.append(event)
             self._decay(candidates, t, cfg.duplicate_window_sec)
@@ -118,7 +120,8 @@ class KillFeedDetector:
                     log.warning("OCR failed at %.1fs: %s", t, exc)
                     continue
                 event = self._process(t, ocr_res.text, ocr_res.confidence,
-                                      ocr_res.raw_lines, candidates, last_emit, cfg)
+                                      ocr_res.raw_lines, ocr_res.line_scores,
+                                      candidates, last_emit, cfg)
                 if event:
                     events.append(event)
                 self._decay(candidates, t, cfg.duplicate_window_sec)
@@ -134,35 +137,63 @@ class KillFeedDetector:
         small = cv2.resize(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY), (80, 40))
         result = self.ocr.recognize(crop)
         score = ign_match_score(result.text, self.settings.ign)
-        changed = prev_small is None or float(
-            np.mean(cv2.absdiff(small, prev_small))) > 2.0
-        if changed and score < 0.55:
+        # A persistent dim knock row barely changes between frames, so the old
+        # `changed` gate meant it was never re-read with the row-aware path.
+        if score < 0.55:
             try:
                 rows = self.ocr.recognize_rows(crop)
                 row_score = ign_match_score(rows.text, self.settings.ign)
                 if row_score > score:
+                    result = rows
+                elif rows.raw_lines and score < 0.30:
                     result = rows
             except Exception as exc:  # noqa: BLE001
                 log.debug("Row OCR failed: %s", exc)
         return result, small
 
     def _process(self, t: float, text: str, ocr_conf: float, lines: list[str],
-                 candidates: dict, last_emit: dict, cfg) -> FeedEvent | None:
-        """Confirm sightings per kill-feed ROW, not per global IGN.
+                 line_scores: list[float], candidates: dict, last_emit: dict,
+                 cfg) -> FeedEvent | None:
+        """Confirm sightings per kill-feed ROW, not per global blob.
 
-        A single global cooldown suppressed any second kill that happened
-        within ``duplicate_window_sec`` (the classic "5th kill missing" bug).
-        Each distinct feed row now has its own confirmation state: a new row
-        emits as soon as it has been observed ``min_observations`` times, while
-        a persistent row is emitted only once until it disappears.
+        Fixes for the missed-knock bug:
+          * classify using the single row that best matches the IGN;
+          * use *that row's* OCR confidence (a crisp HUD number must not lend
+            1.00 confidence to a garbled name);
+          * remove the global 1.5 s cooldown that dropped a second real event;
+          * fuzzy-victim dedup only for substantial, similarly-spelled victims
+            and never across categories (a confirmed kill supersedes a prior
+            knock candidate).
         """
         if not text:
             return None
-        classification = classify_feed_line(text, self.settings.ign)
+        best_line, match_score, matched_conf = best_matching_line(
+            self.settings.ign, text, lines, line_scores)
+        classification = classify_feed_line(best_line or text, self.settings.ign)
         if classification not in ("confirmed", "possible"):
             return None
-        knock = looks_like_knock(text)
-        sig = feed_entry_signature(text, self.settings.ign)
+
+        conf = matched_conf if matched_conf > 0 else ocr_conf
+        threshold = float(getattr(cfg, "confidence_threshold", 0.45))
+        # Dim/knock rows read worse than crisp kill rows. Keep them as
+        # low-confidence candidates instead of discarding them outright; the
+        # resulting event is marked knock_candidate and scored accordingly.
+        if classification == "possible":
+            threshold *= 0.7
+        if conf < threshold:
+            return None
+
+        knock = looks_like_knock(best_line or text)
+        sig = feed_entry_signature(text, self.settings.ign, line=best_line)
+        victim = victim_of(sig)
+        if not victim:
+            # A garbled IGN yields the bare-IGN signature. Without a victim
+            # token every such row would collide and all knocks inside the
+            # dedup window would be dropped. Fingerprint the matched row so
+            # distinct rows get distinct identities while an unchanged row
+            # stays suppressed by the exact-signature check below.
+            fingerprint = normalize_text(best_line or text)[:14]
+            sig = sig + "|~" + fingerprint
         info = candidates.setdefault(
             sig, {"count": 0, "last": t, "emitted": False})
 
@@ -178,41 +209,43 @@ class KillFeedDetector:
         # new row against recently emitted ones with fuzzy similarity: a
         # clearly different victim means a genuinely new kill, even seconds
         # later; the same row with jitter is suppressed.
-        recent: list[tuple[float, str]] = last_emit.setdefault("__recent__", [])
-        for prev_t, prev_sig in list(recent):
+        recent: list[tuple[float, str, str]] = last_emit.setdefault("__recent__", [])
+        for prev_t, prev_sig, prev_category in list(recent):
             if t - prev_t > 45.0:
-                recent.remove((prev_t, prev_sig))
+                recent.remove((prev_t, prev_sig, prev_category))
                 continue
-            victim = sig.split("|", 1)[1] if "|" in sig else sig
-            prev_victim = prev_sig.split("|", 1)[1] if "|" in prev_sig else prev_sig
-            if victim and prev_victim and (
-                    SequenceMatcher(None, victim, prev_victim).ratio() >= 0.68):
-                info["emitted"] = True
-                return None
-        recent.append((t, sig))
-
-        # Guard against two near-identical detections in the same second.
-        if t - last_emit.get("__any__", -1e9) < 1.5:
-            return None
+            prev_victim = victim_of(prev_sig)
+            # Fingerprint keys (garbled rows with no victim) are deliberately
+            # NOT fuzzy-matched — two different garbled readings are different
+            # potential knocks and must both survive.
+            if victim.startswith("~") or prev_victim.startswith("~"):
+                continue
+            if len(victim) >= 4 and len(prev_victim) >= 4 and (
+                    SequenceMatcher(None, victim, prev_victim).ratio() >= 0.85):
+                if not (classification == "confirmed"
+                        and prev_category == "knock_candidate"):
+                    info["emitted"] = True
+                    return None
 
         info["emitted"] = True
         last_emit[sig] = t
-        last_emit["__any__"] = t
+        recent.append((t, sig, classification))
         if classification == "confirmed":
             category = "knock" if knock else "confirmed"
         else:
             # Partial IGN match — usually a knock or a garbled row. Keep it as
             # a low-confidence candidate with the evidence attached.
             category = "knock_candidate"
-        ev_conf = min(1.0, ocr_conf * (0.85 + 0.15 * min(info["count"], 4) / 4))
+        ev_conf = min(1.0, conf * (0.85 + 0.15 * min(info["count"], 4) / 4))
         if category == "knock_candidate":
             ev_conf *= 0.75
         return FeedEvent(
             timestamp=t, category=category, confidence=ev_conf,
-            recognised_text=text[:200], ocr_confidence=ocr_conf,
+            recognised_text=text[:200], ocr_confidence=conf,
             observations=info["count"], signature=sig,
             evidence={"classification": classification, "knock_indicator": knock,
                       "ign": self.settings.ign, "lines": lines,
+                      "matched_line": best_line, "match_score": match_score,
                       "entry_signature": sig},
         )
 

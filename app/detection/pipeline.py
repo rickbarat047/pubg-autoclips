@@ -29,6 +29,21 @@ log = get_logger("detection.pipeline")
 OverallCb = Callable[[float, str, str], None]  # (fraction, stage, message)
 
 
+def compute_sample_interval(settings: AppSettings, duration: float) -> float:
+    """Pick the frame-sampling interval for OCR and visual analysis.
+
+    Uses the finer of the two configured intervals so the "accurate" preset
+    actually samples more often, then caps total samples at 1800 so a 40-minute
+    recording stays bounded.
+    """
+    requested = [settings.kill_feed.sample_interval_sec]
+    if settings.visual.enabled:
+        requested.append(settings.visual.sample_interval_sec)
+    interval = min(requested)
+    interval = max(interval, duration / 1800.0)
+    return round(interval, 3)
+
+
 @dataclass
 class AnalysisResult:
     events: list[ScoredEvent] = field(default_factory=list)
@@ -71,15 +86,9 @@ class AnalysisPipeline:
             if token:
                 token.check()
 
-        # Adaptive interval: cap total samples so long recordings stay fast.
-        configured = self.settings.kill_feed.sample_interval_sec
-        if not self.settings.visual.enabled:
-            interval = configured
-        else:
-            interval = max(configured, self.settings.visual.sample_interval_sec)
-        interval = max(interval, duration / 900.0)
-        interval = round(interval, 3)
-        log.info("Analysis sample interval: %.2fs for %.0fs video", interval, duration)
+        interval = compute_sample_interval(self.settings, duration)
+        log.info("Analysis sample interval: %.2fs for %.0fs video (~%d samples)",
+                 interval, duration, int(duration / interval) + 1)
 
         # Stage 0 + audio run concurrently.
         check()

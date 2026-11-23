@@ -320,3 +320,32 @@ plugins would only add dependencies without benefit.
 
 Logs: `%LOCALAPPDATA%\PUBG AutoClips\Logs\pubg_autoclips.log` (rotating).
 Errors are shown as actionable dialogs and never silently swallowed.
+
+### Kill-feed detection: missed knock/kill investigation
+
+A systematic review of the detection chain found several root causes for missed
+knock moments (documented in `DEBUG_FINDINGS.md`). Fixes applied:
+
+- OCR now reads **all** detected kill-feed rows and keeps a confidence per row,
+  instead of one blob with the HUD's confidence.
+- IGN matching and victim extraction use the single best-matching feed row.
+- Duplicate suppression is per feed row with a strict victim check; the global
+  1.5 s cooldown was removed (it dropped the second of two fast knocks).
+- Garbled rows without a readable victim now get a distinct fingerprint, so
+  they are no longer all collapsed into one event.
+- Event ranking is category-aware: a confirmed KILL/KNOCK is not evicted by a
+  nearby generic COMBAT event.
+- Sampling uses the finer of the configured OCR/visual intervals (capped at
+  1800 frames) so the "Accurate" preset is honoured on long recordings.
+
+9 regression tests were added in `tests/test_missing_knocks.py`.
+
+### Troubleshooting: Windows Smart App Control blocks the app
+
+If the app or `pytest` exits immediately (silent exit code 1) and Code Integrity
+events 3033/3077 mention `_pydantic_core` or numpy `.pyd` files, Windows Smart
+App Control is enforcing unsigned-binary blocks. Disable it:
+
+**Windows Security → App & browser control → Smart App Control → Off**, then
+reboot. This is a one-way switch. It cannot be automated from an unelevated
+shell.
