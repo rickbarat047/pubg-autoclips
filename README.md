@@ -340,6 +340,24 @@ knock moments (documented in `DEBUG_FINDINGS.md`). Fixes applied:
 
 9 regression tests were added in `tests/test_missing_knocks.py`.
 
+#### Verification against real footage
+
+Re-analysed a real 26-minute recording (`2026-11-18 21-23-06.mp4`, 1598 s,
+1920x1080) with the default Balanced preset after applying the fixes:
+
+- Kill-feed events: **13 → 16** (4 missed moments recovered, 1 duplicate removed).
+  Newly captured event times include ~866 s, ~872 s, ~952 s and ~958 s.
+- Per-row OCR confidence is now 0.65–0.85 and reflects the matching feed row.
+- End-to-end compilation: **10 segments, 11/11 feed events covered**, rendered to
+  a 1080x1920 / 30 fps / H.264 + AAC MP4 (167 s, 5010 frames, 121 MB) that
+  passes a clean full decode.
+- Full test suite: **77 passed**.
+
+All 77 tests pass and the output decodes without errors. Note that the PUBG feed
+uses icons (not words) to distinguish a knock from a kill, so OCR cannot reliably
+label that difference; events are reported by confidence, not as a verified
+knock/kill count.
+
 ### Troubleshooting: Windows Smart App Control blocks the app
 
 If the app or `pytest` exits immediately (silent exit code 1) and Code Integrity

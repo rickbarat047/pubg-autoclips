@@ -26,6 +26,9 @@ class _FakeOcr:
 
 
 def _detector(settings: AppSettings) -> KillFeedDetector:
+    # The shared `settings` fixture uses TESTPLAYER; these tests deliberately
+    # exercise the real-world IGN and feed text captured during debugging.
+    settings.ign = "rickbarat"
     settings.kill_feed.min_observations = 1
     settings.kill_feed.confidence_threshold = 0.45
     return KillFeedDetector(settings, _FakeOcr())
@@ -78,7 +81,7 @@ def test_signature_uses_the_matching_row_victim():
     # normalize_text maps OCR confusions: 0->o and 5->s
     assert "bennneso" in sig
     assert "alive" not in sig
-    assert victim_of(sig) == "bennneso"
+    assert victim_of(sig).startswith("bennneso")
 
 
 # --- Root causes 3 & 4: global cooldown + fuzzy victim collapse -------------

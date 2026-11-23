@@ -6,7 +6,11 @@ import unicodedata
 from difflib import SequenceMatcher
 
 # Characters commonly misread by OCR in gamer tags.
-_CONFUSIONS = str.maketrans({
+# NOTE: this must be a plain {char: char} dict, NOT str.maketrans(...), because
+# normalize_text() looks up single characters with `_CONFUSIONS.get(ch, ch)`.
+# str.maketrans builds integer (ordinal) keys, so every lookup used to miss and
+# the entire OCR-confusion tolerance layer was dead code.
+_CONFUSIONS = {
     "0": "o", "O": "o", "o": "o",
     "1": "l", "I": "l", "L": "l", "l": "l", "|": "l", "!": "l",
     "5": "s", "S": "s", "s": "s",
@@ -16,7 +20,7 @@ _CONFUSIONS = str.maketrans({
     "4": "a", "A": "a", "a": "a",
     "7": "t", "T": "t", "t": "t",
     "9": "g",
-})
+}
 
 # PUBG kill feed decorations that should not affect matching.
 _SEPARATORS = set("[](){}<>-_–—·•|=+*.:,/'\"\\~ ")

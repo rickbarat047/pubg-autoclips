@@ -76,14 +76,15 @@ installed to `bin/`.
 
 ## 4. Tests executed and results
 
-- `python -m pytest -q` → **58 passed** (including 7-kill coverage, compilation planning,
+- `python -m pytest -q` → **77 passed** (including 7-kill coverage, compilation planning,
   chronological ordering, overlap merging, duplicate removal, pre/post
   boundaries, FFmpeg concatenation, audio preservation, output resolution,
   integrity, temp cleanup, failed-export recovery, FFprobe metadata, validation,
   IGN normalisation/matching, OCR duplicate suppression with fake OCR, event
   scoring, grouping/ranking, clip boundaries/merging/deduplication, SQLite
   persistence, cancellation tokens, end-to-end pipeline on synthetic footage,
-  FFmpeg vertical render + validation + audio preservation).
+  FFmpeg vertical render + validation + audio preservation, plus 9 new
+  regression tests for the missed-knock fixes in `tests/test_missing_knocks.py`).
 - GUI smoke tests: offscreen construction of all 7 pages, onboarding wizard and
   calibration dialog; real Windows launch with auto-quit — all succeeded.
 - Real RapidOCR smoke test: read `"TESTPLAYER killed BOT"` from a synthetic
@@ -92,18 +93,30 @@ installed to `bin/`.
   0.5 s.
 - Real export verification: 1080×1920, 30 FPS, h264, AAC, 3.0 s output validated.
 
-No PUBG-specific accuracy claim is made — no real PUBG footage was available.
+- **Real-footage verification (2026-11-24)**: re-analysed the 26.6-minute real
+  PUBG recording with the fixes: kill-feed events increased 13 → 16, new events
+  at ~866/872/952/958 s, per-row OCR confidence 0.65–0.85. End-to-end compilation
+  of 10 segments covered 11/11 feed events; output verified 1080×1920, 30 FPS,
+  H.264/AAC, 167 s, 5010 frames, 121 MB with a clean full decode (0 errors).
+
+No PUBG-specific accuracy claim is made: kill vs knock is distinguished by feed
+icons rather than text, so events are reported with confidence and evidence
+rather than as verified knock labels.
 
 ## 5. Performance observations
 
-- **Real 16.6-minute 1080p match: ~87 s end-to-end** (was 30+ minutes before
-  optimisation). 500 frames extracted in ~11 s, OCR ~68 s, audio ~3 s in a
-  parallel thread. Produced 4 kill-feed events and 3 candidate clips.
+- **Real 26.6-minute 1080p match with full OCR: ~544 s end-to-end** (799 sampled
+  frames under default Balanced 2 s settings). Earlier ~87 s measurements used
+  a now-removed fast path that skipped most OCR. This is the honest cost of
+  reading every feed row; the Accurate preset (1 s) will be slower.
 - RapidOCR cold initialisation ≈ 2.7 s (lazy, off the GUI thread).
 - Vertical export of a 3 s 1728×1080 source to 1080×1920 H.264 ≈ 0.3–0.8 s with
   `veryfast`.
 - One-pass FFmpeg frame extraction + shared frames for OCR and visual; adaptive
-  sampling caps any recording at ~900 samples.
+  sampling uses the finer of the OCR/visual intervals and caps any recording at
+  ~1800 samples.
+- End-to-end compilation of 10 segments (10× FFmpeg render + stream-copy concat)
+  completed in ~85 s for a 167 s output.
 - Audio decoded in 1-second PCM chunks; memory does not scale with length.
 
 ## 6. Known bugs and limitations
