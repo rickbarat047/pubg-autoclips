@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from .widgets.common import Card, empty_state
+from .widgets.step_indicator import StepIndicator
 
 
 class AnalysisPage(QWidget):
@@ -19,11 +20,13 @@ class AnalysisPage(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
         lay.setSpacing(16)
-        title = QLabel("Analysis")
+        title = QLabel("Step 2 — Analysing your match")
         title.setObjectName("pageTitle")
         sub = QLabel("Full-match gameplay analysis — runs in the background")
         sub.setObjectName("pageSubtitle")
         lay.addWidget(title); lay.addWidget(sub)
+        self.step_indicator = StepIndicator(current=2)
+        lay.addWidget(self.step_indicator)
 
         self.idle, _ = empty_state("🔍", "Nothing processing",
                                    "Import a recording and analysis will appear here.")
@@ -99,7 +102,7 @@ class AnalysisPage(QWidget):
     def finish(self) -> None:
         self.overall.setValue(1000)
         self.stage_lbl.setText("Analysis complete")
-        self.msg_lbl.setText("Open the Highlights page to review results.")
+        self.msg_lbl.setText("Analysis complete — review and export your clips on the next screen.")
 
     def reset(self) -> None:
         self.work.hide(); self.idle.show()
