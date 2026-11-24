@@ -18,6 +18,7 @@ from ..clips.compilation_builder import (
 from ..utils.logging import get_logger
 from .video_player_dialog import VideoPlayerDialog
 from .widgets.common import Card, empty_state, section
+from .widgets.step_indicator import StepIndicator
 
 log = get_logger("ui.compile")
 
@@ -218,11 +219,13 @@ class CompilePage(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
         lay.setSpacing(14)
-        title = QLabel("Export")
-        title.setObjectName("pageTitle")
-        sub = QLabel("One match in — one finished highlight compilation out")
+        self.title = QLabel("Step 3 — Review & export")
+        self.title.setObjectName("pageTitle")
+        sub = QLabel("Check your clips, add anything missed, then export")
         sub.setObjectName("pageSubtitle")
-        lay.addWidget(title); lay.addWidget(sub)
+        lay.addWidget(self.title); lay.addWidget(sub)
+        self.step_indicator = StepIndicator(current=3)
+        lay.addWidget(self.step_indicator)
 
         # Mode selector
         mode_card = Card()
@@ -231,8 +234,8 @@ class CompilePage(QWidget):
         ml.addWidget(section("Export mode"))
         self.mode = QComboBox()
         self.mode.addItems([
-            "Single Highlight Compilation",
-            "Separate Individual Clips",
+            "One combined video",
+            "Separate video clips",
         ])
         self.mode.setCurrentIndex(0 if ctx.settings.export_mode == "compilation" else 1)
         self.mode.currentIndexChanged.connect(self._on_mode)
