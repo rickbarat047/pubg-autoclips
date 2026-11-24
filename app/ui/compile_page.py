@@ -216,7 +216,19 @@ class CompilePage(QWidget):
         self.has_audio = True
         self.last_output = ""
 
-        lay = QVBoxLayout(self)
+        # The whole review page scrolls. The embedded player plus timeline and
+        # segment list are taller than a normal window; without a scroll area
+        # the timeline was pushed below the viewport and could not be reached
+        # to add manual clips (see regression tests/test_review_timeline_visible.py).
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        content = QWidget()
+        self.page_scroll.setWidget(content)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.page_scroll)
+        lay = QVBoxLayout(content)
         lay.setContentsMargins(28, 24, 28, 24)
         lay.setSpacing(14)
         self.title = QLabel("Step 3 — Review & export")
@@ -258,7 +270,9 @@ class CompilePage(QWidget):
         lay.addWidget(stats_card)
 
         # Inline player: preview any moment of the match before exporting.
+        # Keep it compact so the timeline below stays visible without scrolling.
         self.player_host = QWidget()
+        self.player_host.setMaximumHeight(240)
         player_lay = QVBoxLayout(self.player_host)
         player_lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self.player_host)
@@ -455,6 +469,11 @@ class CompilePage(QWidget):
         try:
             dlg = VideoPlayerDialog(self.source_path, parent=self)
             dlg.setWindowFlags(Qt.Widget)
+            # Standalone dialogs want a 300px video surface. Embedded here it
+            # must stay compact so the timeline is visible without scrolling.
+            dlg.video_widget.setMinimumHeight(120)
+            dlg.setMinimumHeight(0)
+            self.player_host.setMaximumHeight(240)
             self.player_host.layout().addWidget(dlg)
             self._player = dlg
         except Exception:  # pragma: no cover - Qt backend failure
