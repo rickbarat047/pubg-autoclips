@@ -287,7 +287,7 @@ class CompilePage(QWidget):
 
         # Actions
         actions = QHBoxLayout()
-        self.preview_btn = QPushButton("Preview compilation")
+        self.preview_btn = QPushButton("Preview")
         self.preview_btn.setObjectName("ghost")
         self.preview_btn.clicked.connect(lambda: self._export(preview=True))
         self.folder_btn = QPushButton("Change output folder")
@@ -297,7 +297,7 @@ class CompilePage(QWidget):
         self.add_range_btn.setObjectName("ghost")
         self.add_range_btn.setToolTip("Add the 20 seconds starting at the player position")
         self.add_range_btn.clicked.connect(self.add_current_range)
-        self.export_btn = QPushButton("Export compilation")
+        self.export_btn = QPushButton("Export")
         self.export_btn.setObjectName("primary")
         self.export_btn.clicked.connect(lambda: self._export(preview=False))
         actions.addWidget(self.preview_btn)

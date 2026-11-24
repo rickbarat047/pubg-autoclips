@@ -18,3 +18,5 @@ def test_review_copy_and_manual_add_survive(ctx, qtbot):
     assert page.mode.itemText(0) == "One combined video"
     assert page.mode.itemText(1) == "Separate video clips"
     assert page.add_range_btn.text() == "+ Add 20s here"
+    assert page.preview_btn.text() == "Preview"
+    assert page.export_btn.text() == "Export"
