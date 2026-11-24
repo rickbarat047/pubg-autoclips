@@ -27,7 +27,7 @@ class DashboardPage(QWidget):
 
         title = QLabel("Dashboard")
         title.setObjectName("pageTitle")
-        sub = QLabel("Overview of your local highlight workspace")
+        sub = QLabel("Your highlights, start to finish")
         sub.setObjectName("pageSubtitle")
         lay.addWidget(title); lay.addWidget(sub)
 
@@ -65,7 +65,7 @@ class DashboardPage(QWidget):
         al = QVBoxLayout(actions)
         al.setContentsMargins(18, 16, 18, 16)
         al.addWidget(section_header("Quick actions")[0])
-        self.review_btn = QPushButton("Review latest match")
+        self.review_btn = QPushButton("Continue")
         self.review_btn.setObjectName("primary")
         self.review_btn.setEnabled(False)
         self.review_btn.clicked.connect(self._on_review_clicked)
