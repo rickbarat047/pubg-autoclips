@@ -15,6 +15,7 @@ from ..core.project_manager import ProjectManager
 from ..media.media_validator import MediaValidator
 from ..utils.logging import get_logger
 from .widgets.common import Card, ToastLabel
+from .widgets.step_indicator import StepIndicator
 
 log = get_logger("ui.import")
 
@@ -72,11 +73,13 @@ class ImportPage(QWidget):
         lay.setContentsMargins(28, 24, 28, 24)
         lay.setSpacing(16)
 
-        title = QLabel("Import recording")
-        title.setObjectName("pageTitle")
+        self.title = QLabel("Step 1 — Add a recording")
+        self.title.setObjectName("pageTitle")
         sub = QLabel("Add a complete PUBG match recorded with OBS Studio")
         sub.setObjectName("pageSubtitle")
-        lay.addWidget(title); lay.addWidget(sub)
+        lay.addWidget(self.title); lay.addWidget(sub)
+        self.step_indicator = StepIndicator(current=1)
+        lay.addWidget(self.step_indicator)
 
         self.drop = DropZone()
         self.drop.file_dropped.connect(self.on_file)
@@ -99,7 +102,7 @@ class ImportPage(QWidget):
 
         actions = QHBoxLayout()
         actions.addStretch()
-        self.import_btn = QPushButton("Import & Analyse")
+        self.import_btn = QPushButton("Analyse match")
         self.import_btn.setObjectName("primary")
         self.import_btn.setEnabled(False)
         self.import_btn.clicked.connect(self.do_import)
