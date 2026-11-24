@@ -32,6 +32,12 @@ QLabel#pageSubtitle { font-size: 13px; color: #8C979F; }
 QLabel#sectionTitle { font-size: 16px; font-weight: 700; color: #E8ECEF; }
 QLabel#muted { color: #7E8A92; }
 QLabel#accent { color: #7CFC00; font-weight: 600; }
+QLabel#stepIdle { color: #7E8A92; font-size: 12px; font-weight: 600; }
+QLabel#stepActive {
+    color: #10150A; font-size: 12px; font-weight: 700;
+    background: #7CFC00; border-radius: 12px;
+    padding: 4px 10px;
+}
 
 /* Cards */
 QFrame#card {
