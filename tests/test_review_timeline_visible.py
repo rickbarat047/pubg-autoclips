@@ -32,8 +32,8 @@ def test_timeline_is_reachable_in_a_scrolling_page(ctx, qtbot):
     assert scroll is not None, "Review page needs a scroll area so all content is reachable"
     assert page.timeline in scroll.findChildren(type(page.timeline))
 
-    # The embedded player must stay compact so the timeline is visible without
-    # scrolling on a normal-sized window.
+    # The embedded player height is capped; the page scroll area keeps the
+    # timeline reachable even when the player is enlarged.
     host = page.player_host
     assert host.maximumHeight() > 0, "Embedded player height must be capped"
-    assert host.maximumHeight() <= 260
+    assert host.maximumHeight() <= 400

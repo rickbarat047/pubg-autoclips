@@ -28,13 +28,13 @@ class VideoPlayerDialog(QDialog):
         self.end_sec = max(self.start_sec, float(end)) if end is not None else None
         self.setWindowTitle("Clip Preview")
         self.setMinimumWidth(560)
-        self.resize(720, 520)
+        self.resize(960, 680)
         self.setStyleSheet("background: #14161a; color: #e8ecf1;")
         self._scrubbing = False
         self._duration_ms = 0
 
         self.video_widget = QVideoWidget(self)
-        self.video_widget.setMinimumHeight(300)
+        self.video_widget.setMinimumHeight(420)
         self.play_button = QPushButton("▶ Play", self)
         self.play_button.setObjectName("primary")
         self.play_button.setEnabled(False)

@@ -270,9 +270,10 @@ class CompilePage(QWidget):
         lay.addWidget(stats_card)
 
         # Inline player: preview any moment of the match before exporting.
-        # Keep it compact so the timeline below stays visible without scrolling.
+        # Sized for readable gameplay; the page scroll area keeps the timeline
+        # reachable even on short windows or high-DPI scaling.
         self.player_host = QWidget()
-        self.player_host.setMaximumHeight(240)
+        self.player_host.setMaximumHeight(360)
         player_lay = QVBoxLayout(self.player_host)
         player_lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self.player_host)
@@ -469,11 +470,12 @@ class CompilePage(QWidget):
         try:
             dlg = VideoPlayerDialog(self.source_path, parent=self)
             dlg.setWindowFlags(Qt.Widget)
-            # Standalone dialogs want a 300px video surface. Embedded here it
-            # must stay compact so the timeline is visible without scrolling.
-            dlg.video_widget.setMinimumHeight(120)
+            # Standalone dialogs want a tall video surface; keep a generous
+            # embedded height too — the page scrolls so the timeline stays
+            # reachable even when the player fills more vertical space.
+            dlg.video_widget.setMinimumHeight(280)
             dlg.setMinimumHeight(0)
-            self.player_host.setMaximumHeight(240)
+            self.player_host.setMaximumHeight(360)
             self.player_host.layout().addWidget(dlg)
             self._player = dlg
         except Exception:  # pragma: no cover - Qt backend failure
