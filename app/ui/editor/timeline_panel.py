@@ -35,6 +35,9 @@ class TimelinePanel(QWidget):
     def set_segments(self, segments: list, duration: float) -> None:
         self.segments = list(segments)
         self.duration = max(1.0, float(duration))
+        # Ranges are re-derived from the DB on every reload; clear stale ones
+        # so old dragged ranges are not painted twice after _load_segments.
+        self._ranges.clear()
         self.update()
 
     def _x_to_time(self, x: float) -> float:

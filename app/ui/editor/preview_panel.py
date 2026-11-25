@@ -190,7 +190,9 @@ class PreviewPanel(QWidget):
     def _scrub_end(self) -> None:
         self._scrubbing = False
         if self._duration_ms > 0:
-            self.seek(self.seek_slider.value() / 1000.0 * self._duration_ms)
+            # Slider is a 0-1000 fraction; _duration_ms is milliseconds;
+            # seek() expects SECONDS — divide by 1000 here.
+            self.seek(self.seek_slider.value() / 1000.0 * self._duration_ms / 1000.0)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
         """Stop timers and the media pipeline before teardown to avoid races."""

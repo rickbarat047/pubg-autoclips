@@ -274,6 +274,8 @@ class MainWindow(EditorWindow):
         if kept:
             first = kept[0]
             self.preview.set_bounds(first.start, first.end)
+            # Show the first clip's frame immediately, not match time 00:00.
+            self.preview.seek(first.start)
         # Timeline + Inspector from the compiled segments.
         self.compile.set_match(self.current_match_id)
         segments = getattr(self.compile, "segments", [])
