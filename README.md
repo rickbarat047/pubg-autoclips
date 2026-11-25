@@ -1,7 +1,7 @@
-# PUBG AutoClips
+﻿# PUBG AutoClips
 
 A **free, local-first** Windows desktop application that analyses complete PUBG
-match recordings and produces vertical 1080×1920 short-form MP4 clips. It uses
+match recordings and produces vertical 1080Ã—1920 short-form MP4 clips. It uses
 kill-feed OCR, local audio analysis and lightweight OpenCV visual analysis to
 rank highlight candidates. No cloud services, paid APIs or mandatory online AI.
 
@@ -20,7 +20,7 @@ rank highlight candidates. No cloud services, paid APIs or mandatory online AI.
 - Import MP4/MKV recordings with drag-and-drop; FFprobe metadata extraction.
 - First-run onboarding: IGN, screenshot-based kill-feed calibration (normalised
   region), OCR test, output folder.
-- Full-match analysis in background QThreads — GUI never freezes.
+- Full-match analysis in background QThreads â€” GUI never freezes.
   - Kill-feed OCR via RapidOCR (ONNX Runtime, CPU) with configurable sampling,
     confidence threshold, multi-observation confirmation and duplicate
     suppression.
@@ -32,7 +32,7 @@ rank highlight candidates. No cloud services, paid APIs or mandatory online AI.
     duplicate removal.
 - SQLite persistence (settings, matches, jobs, events, highlights, exports)
   with schema migrations.
-- **Single Highlight Compilation (default export mode):** one match in → one
+- **Single Highlight Compilation (default export mode):** one match in â†’ one
   finished MP4 out. Selected moments are given smart boundaries, merged when
   they overlap, arranged chronologically, rendered with identical parameters,
   concatenated with short audio fades, and verified (resolution, codec,
@@ -50,10 +50,10 @@ rank highlight candidates. No cloud services, paid APIs or mandatory online AI.
 
 ### Not implemented / explicitly limited
 - No verified kill-vs-knock classification from OCR alone.
-- No verified clutch (1vX) labelling — evidence is insufficient.
+- No verified clutch (1vX) labelling â€” evidence is insufficient.
 - No player-count / HP / alive-counter detection (would require additional HUD
   models not shipped in v1).
-- No GPU (CUDA or AMD) inference for OCR — CPU ONNX only.
+- No GPU (CUDA or AMD) inference for OCR â€” CPU ONNX only.
 - No non-MP4-specific codec transcoding beyond what FFmpeg supports.
 - No automatic re-encoding of unsupported source codecs before analysis.
 - PyInstaller build is supplied but **not** verified on a clean Windows install.
@@ -86,9 +86,9 @@ FFmpeg is **not bundled** by default. Install it either way:
    place `ffmpeg.exe` and `ffprobe.exe` in `bin/`, **or**
 2. Install FFmpeg and add it to your `PATH`.
 
-Set explicit paths in **Settings → System** if auto-detection fails.
+Set explicit paths in **Settings â†’ System** if auto-detection fails.
 
-RapidOCR ships its ONNX models inside the Python package — nothing is
+RapidOCR ships its ONNX models inside the Python package â€” nothing is
 downloaded at runtime. Analysis and export work fully offline.
 
 ### FFmpeg licensing
@@ -132,17 +132,17 @@ an output folder during onboarding or in Settings.
 
 ## Workflow
 
-1. **Onboard** — enter IGN, calibrate kill-feed region from a screenshot,
+1. **Onboard** â€” enter IGN, calibrate kill-feed region from a screenshot,
    choose output folder.
 2. **Import** an OBS MP4 recording on the Import page.
 3. **Analysis** starts automatically; progress for OCR/audio/visual/scoring is
    shown live. You can pause or cancel safely.
-4. **Highlights** — review cards, preview, filter, keep/discard.
-5. **Editor** — scrub and adjust start/end, check the vertical preview.
-6. **Export** — the Export page defaults to **Single Highlight Compilation**.
+4. **Highlights** â€” review cards, preview, filter, keep/discard.
+5. **Editor** â€” scrub and adjust start/end, check the vertical preview.
+6. **Export** â€” the Export page defaults to **Single Highlight Compilation**.
    It shows the selected-segment counts, estimated duration, a timeline and
    editable boundaries. After analysis the compilation is built automatically
-   (disable in Settings → Export). The result is **one** file named
+   (disable in Settings â†’ Export). The result is **one** file named
    `PUBG_Highlights_YYYY-MM-DD_HHMM.mp4` in the output folder. Choose
    "Separate Individual Clips" in the mode selector if you prefer one MP4 per
    highlight (the legacy behaviour).
@@ -152,8 +152,8 @@ an output folder during onboarding or in Settings.
 The default export produces **one** MP4 per match:
 
 - Every kept highlight becomes a segment with `10 s` before and `5 s` after its
-  event (configurable). Segments are clamped to `10–30 s` and overlapping or
-  near-adjacent moments (`≤ 2 s` gap) are merged into one encounter.
+  event (configurable). Segments are clamped to `10â€“30 s` and overlapping or
+  near-adjacent moments (`â‰¤ 2 s` gap) are merged into one encounter.
 - Confirmed eliminations, multi-kills and clutch candidates are always
   prioritised; weak audio-only / visual-only windows are filtered out.
 - Segments are ordered chronologically by default (optional order-by-score).
@@ -165,7 +165,7 @@ The default export produces **one** MP4 per match:
   are deleted only after successful verification.
 - A preview renders the same segments at low resolution into the cache.
 
-All of these values are configurable in **Settings → Highlight compilation**.
+All of these values are configurable in **Settings â†’ Highlight compilation**.
 
 ---
 
@@ -197,11 +197,11 @@ replaced later (e.g. a HUD reading model instead of OCR).
 ### Data storage
 Application data lives under the platformdirs user data directory
 (e.g. `%LOCALAPPDATA%\PUBG AutoClips`). Large video files are **never** stored
-in SQLite — only paths and metadata.
+in SQLite â€” only paths and metadata.
 
 ---
 
-## Scoring model (starting weights — not validated PUBG metrics)
+## Scoring model (starting weights â€” not validated PUBG metrics)
 
 | Signal | Weight |
 |---|---|
@@ -223,7 +223,7 @@ explainable, and all weights are configurable in `config.py` / settings.
 - **One-pass frame extraction**: FFmpeg decodes the video once and writes only
   sampled frames (one every 2 s by default). This replaced slow OpenCV seeking
   per frame. A 16-minute 1080p match extracts ~500 frames in ~10 seconds.
-- OCR and visual analysis share those same frames — no second decode pass.
+- OCR and visual analysis share those same frames â€” no second decode pass.
 - OCR uses a max-side detection limit and skips orientation classification,
   making each crop ~4x faster with no loss of kill-feed readability.
 - Audio is streamed as 1-second PCM chunks in a parallel thread.
@@ -301,15 +301,15 @@ debugging, code review, and UI/UX design.
 
 Three project-specific skills add PUBG AutoClips knowledge:
 
-- `pubg-killfeed-ocr` — calibration, IGN matching, duplicate suppression, confidence
-- `pubg-video-processing` — FFmpeg, one-pass extraction, vertical export, verification
-- `pubg-performance-optimisation` — CPU-first tuning, worker lifetime, Windows behaviour
+- `pubg-killfeed-ocr` â€” calibration, IGN matching, duplicate suppression, confidence
+- `pubg-video-processing` â€” FFmpeg, one-pass extraction, vertical export, verification
+- `pubg-performance-optimisation` â€” CPU-first tuning, worker lifetime, Windows behaviour
 
 ### OpenCode configuration
 
 User configuration at `%USERPROFILE%\.config\opencode\opencode.jsonc` is left
 untouched: it contains only the remote Vercel MCP server. No OpenCode plugins
-are configured — the installed skills plus the existing MCP server already
+are configured â€” the installed skills plus the existing MCP server already
 cover documentation lookup, code review, testing and diagnostics, so adding
 plugins would only add dependencies without benefit.
 
@@ -346,25 +346,25 @@ knock moments (documented in `DEBUG_FINDINGS.md`). Fixes applied:
 Re-analysed a real 26-minute recording (`2026-11-18 21-23-06.mp4`, 1598 s,
 1920x1080) with the default Balanced preset after applying the fixes:
 
-- Kill-feed events: **13 → 16** (4 missed moments recovered, 1 duplicate removed).
+- Kill-feed events: **13 â†’ 16** (4 missed moments recovered, 1 duplicate removed).
   Newly captured event times include ~866 s, ~872 s, ~952 s and ~958 s.
-- Per-row OCR confidence is now 0.65–0.85 and reflects the matching feed row.
+- Per-row OCR confidence is now 0.65â€“0.85 and reflects the matching feed row.
 - End-to-end compilation: **10 segments, 11/11 feed events covered**, rendered to
   a 1080x1920 / 30 fps / H.264 + AAC MP4 (167 s, 5010 frames, 121 MB) that
   passes a clean full decode.
-- Full test suite: **127 passed**.
+- Full test suite: **132 passed**.
 
-All 127 tests pass and the output decodes without errors. Note that the PUBG feed
+All 132 tests pass and the output decodes without errors. Note that the PUBG feed
 uses icons (not words) to distinguish a knock from a kill, so OCR cannot reliably
 label that difference; events are reported by confidence, not as a verified
 knock/kill count. (On Windows, pytest may report all tests passing and then exit
-with a native DLL shutdown error — a Qt-multimedia / ONNX Runtime / NumPy
+with a native DLL shutdown error â€” a Qt-multimedia / ONNX Runtime / NumPy
 teardown-order race with no Python frame; it happens after the tests finish and
 does not affect the app.)
 
 ### Single-window editor workflow
 
-The whole app is now one editor workspace — no multi-page sidebar to learn. Design
+The whole app is now one editor workspace â€” no multi-page sidebar to learn. Design
 and plan are in `docs/superpowers/specs/` and `docs/superpowers/plans/`.
 
 - A **top bar** holds the app brand, a search box, and the **Import / Settings /
@@ -381,14 +381,14 @@ and plan are in `docs/superpowers/specs/` and `docs/superpowers/plans/`.
   playhead and seeks the player.
 - Manual ranges are labelled **"Added by you"**, saved in SQLite
   (`manual_segments` table), survive restarts, and are always included in the
-  export — never dropped by the automatic clip limit.
+  export â€” never dropped by the automatic clip limit.
 - **EXPORT** gathers the current timeline segments and builds one vertical
   compilation through the existing worker path. A result card then offers **Play
   Video / Open Folder / Back to workspace**.
 - All colours and type sizes come from one token module (`app/ui/tokens.py`) and
   the theme stylesheet. Settings, About and Calibration open as dialogs.
 
-Verified against real footage (26.6-min match): a 700–720 s manual range was
+Verified against real footage (26.6-min match): a 700â€“720 s manual range was
 persisted, included in an 11-segment compilation, and exported to a
 1080x1920 / 30 fps / H.264 + AAC MP4 (187 s, 5610 frames) that passed a clean full
 decode (~92 s build). The frozen `.exe` bundles the Qt Multimedia plugins.
@@ -399,6 +399,7 @@ If the app or `pytest` exits immediately (silent exit code 1) and Code Integrity
 events 3033/3077 mention `_pydantic_core` or numpy `.pyd` files, Windows Smart
 App Control is enforcing unsigned-binary blocks. Disable it:
 
-**Windows Security → App & browser control → Smart App Control → Off**, then
+**Windows Security â†’ App & browser control â†’ Smart App Control â†’ Off**, then
 reboot. This is a one-way switch. It cannot be automated from an unelevated
 shell.
+
