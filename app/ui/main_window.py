@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from .editor.assets_panel import AssetsPanel
 from .editor.editor_window import EditorWindow
+from .editor.preview_panel import PreviewPanel
 
 from .. import APP_NAME, __version__
 from ..bootstrap import AppContext
@@ -87,6 +88,10 @@ class MainWindow(EditorWindow):
         self.install_panel(self.assets_panel, self.assets)
         self.search_changed.connect(self.assets.filter)
         self.assets.clip_selected.connect(self.open_player_for_highlight)
+
+        # Wire the real centre preview panel into the shell.
+        self.preview = PreviewPanel(self)
+        self.install_panel(self.preview_panel, self.preview)
         self._connect()
 
     def _connect(self) -> None:
