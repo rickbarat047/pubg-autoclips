@@ -11,9 +11,12 @@ import queue
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .exceptions import CancelledError  # single source of truth (re-export)
 
-class CancelledError(Exception):
-    pass
+# CancelledError is imported above from app.core.exceptions so that token.check()
+# and every worker/dialog handler catch the SAME class. Previously this module
+# defined a separate plain-Exception CancelledError, so handlers importing the
+# exceptions hierarchy version never matched — cancellation was mis-handled.
 
 
 class CancellationToken:

@@ -10,8 +10,8 @@ import cv2
 
 from ..clips.clip_selector import ClipCandidate, ClipSelector
 from ..config import AppSettings
-from ..core.task_queue import CancellationToken
-from ..database.db import DatabaseManager
+from ..core.task_queue import CancellationToken, CancelledError
+from ..database.db import DatabaseManager, utcnow
 from ..media.frame_extractor import cleanup_frames, extract_frames
 from ..media.probe import ffmpeg_path
 from ..utils.logging import get_logger
@@ -71,6 +71,23 @@ class AnalysisPipeline:
     def run(self, video_path: str, match_id: int, job_id: int,
             duration: float, token: CancellationToken | None = None,
             overall_cb: OverallCb | None = None) -> AnalysisResult:
+        """Run analysis, marking the job cancelled (persisting nothing) on cancel."""
+        try:
+            return self._run_impl(video_path, match_id, job_id, duration,
+                                  token, overall_cb)
+        except CancelledError:
+            # A cancelled run must leave no partial results and must not stay
+            # 'pending'/'running' forever in the database.
+            try:
+                self.db.update_job(job_id, status="cancelled",
+                                   finished_at=utcnow())
+            except Exception:  # noqa: BLE001 - never mask the cancellation
+                log.exception("Could not mark cancelled job %s", job_id)
+            raise
+
+    def _run_impl(self, video_path: str, match_id: int, job_id: int,
+                  duration: float, token: CancellationToken | None = None,
+                  overall_cb: OverallCb | None = None) -> AnalysisResult:
         import time
         started = time.time()
         result = AnalysisResult()
@@ -114,6 +131,8 @@ class AnalysisPipeline:
                         img = cv2.imread(fs.path)
                         if img is not None:
                             frames.append((fs.timestamp, img))
+                except CancelledError:
+                    raise  # cancellation must abort, not fall back to slow seek
                 except Exception as exc:  # noqa: BLE001
                     log.warning("Fast extraction failed (%s); using seek fallback", exc)
                     frame_samples = []
@@ -140,6 +159,8 @@ class AnalysisPipeline:
             if audio_future:
                 try:
                     audio_windows = audio_future.result(timeout=600)
+                except CancelledError:
+                    raise  # cancellation is a control signal, not a decode failure
                 except Exception as exc:  # noqa: BLE001
                     log.warning("Audio analysis failed: %s", exc)
             stage_progress(1, 1.0, "Audio analysis complete")

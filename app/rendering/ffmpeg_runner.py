@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from dataclasses import dataclass
 
-from ..core.exceptions import ExportError, MissingFfmpegError
+from ..core.exceptions import CancelledError, ExportError, MissingFfmpegError
 from ..core.task_queue import CancellationToken
 from ..media.probe import ffmpeg_path
 from ..utils.logging import get_logger
@@ -38,17 +39,37 @@ def run(cmd: list[str], token: CancellationToken | None = None,
         )
     except FileNotFoundError as exc:
         raise MissingFfmpegError(f"Executable not found: {cmd[0]}") from exc
+    # Poll while the process runs so cancellation is noticed *during* execution,
+    # not only after communicate() returns. A plain communicate(timeout=...) can
+    # block for the entire render, so a cancel request went unnoticed until the
+    # process finished on its own.
+    deadline = (time.monotonic() + timeout) if timeout is not None else None
+    poll_interval = 0.1
     try:
-        out, err = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        out, err = proc.communicate()
-        raise ExportError("FFmpeg timed out while processing the video.")
+        while True:
+            if token is not None and token.is_cancelled():
+                proc.kill()
+                out, err = proc.communicate()
+                raise CancelledError("FFmpeg cancelled")
+            remaining = poll_interval
+            if deadline is not None:
+                remaining = min(remaining, deadline - time.monotonic())
+                if remaining <= 0:
+                    proc.kill()
+                    out, err = proc.communicate()
+                    raise ExportError("FFmpeg timed out while processing the video.")
+            try:
+                out, err = proc.communicate(timeout=remaining)
+                break  # process finished
+            except subprocess.TimeoutExpired:
+                continue  # still running; re-check token/deadline
+    except CancelledError:
+        raise
+    except ExportError:
+        raise
     except Exception:
         proc.kill()
         raise
-    if token and token.is_cancelled():
-        proc.kill()
     return CommandResult(proc.returncode == 0, out or "", err or "", proc.returncode)
 
 

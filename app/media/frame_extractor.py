@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..core.task_queue import CancellationToken
+from ..core.task_queue import CancellationToken, CancelledError
 from ..utils.logging import get_logger
 from .probe import ffmpeg_path
 
@@ -46,7 +47,32 @@ def extract_frames(video_path: str, interval_sec: float,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             creationflags=flags, close_fds=True)
     try:
-        _, err = proc.communicate(timeout=3600)
+        # Poll instead of one blocking communicate() so cancellation can
+        # terminate the decode while it is still running.
+        deadline = time.monotonic() + 3600
+        poll = 0.1
+        while True:
+            if token and token.is_cancelled():
+                proc.kill()
+                proc.communicate()
+                raise CancelledError("Frame extraction cancelled")
+            remaining = max(poll, deadline - time.monotonic())
+            try:
+                _, err = proc.communicate(timeout=remaining)
+                # communicate() can return right as cancellation lands; verify
+                # again before accepting a completed run.
+                if token and token.is_cancelled():
+                    proc.kill()
+                    raise CancelledError("Frame extraction cancelled")
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    proc.kill()
+                    proc.communicate()
+                    raise RuntimeError("Frame extraction timed out")
+                continue
+    except CancelledError:
+        raise
     except Exception:
         proc.kill()
         proc.communicate()

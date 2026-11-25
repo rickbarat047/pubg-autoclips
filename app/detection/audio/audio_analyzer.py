@@ -9,7 +9,7 @@ import numpy as np
 from scipy.stats import zscore
 
 from ...config import AppSettings
-from ...core.task_queue import CancellationToken
+from ...core.task_queue import CancellationToken, CancelledError
 from ...media.probe import ffmpeg_path
 from ...utils.logging import get_logger
 from .energy_detector import detect_spikes, rms, spectral_flatness
@@ -92,6 +92,11 @@ class AudioAnalyzer:
                         progress(min(1.0, t / duration), f"Audio {t:.0f}s")
             proc.stdout.close()
             proc.wait(timeout=10)
+        except CancelledError:
+            # Cancellation is a control signal, not a decode failure — it must
+            # propagate so the worker stops and no partial results are used.
+            proc.kill()
+            raise
         except Exception as exc:  # noqa: BLE001
             log.warning("Audio decoding interrupted: %s", exc)
             proc.kill()
