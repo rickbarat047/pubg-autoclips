@@ -132,3 +132,15 @@ class EditorWindow(QMainWindow):
             lbl = QLabel(caption)
             lbl.setObjectName("muted")
             lay.addWidget(lbl)
+
+    def install_panel(self, region: QWidget, widget: QWidget) -> None:
+        """Replace a placeholder region's contents with a real panel widget."""
+        lay = region.layout()
+        if lay is None:
+            lay = QVBoxLayout(region)
+        while lay.count():
+            item = lay.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        lay.addWidget(widget)

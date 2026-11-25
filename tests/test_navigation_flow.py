@@ -16,8 +16,11 @@ def ctx(settings, db):
 def test_single_window_no_sidebar_navigation(qtbot, ctx):
     win = MainWindow(ctx)
     qtbot.addWidget(win)
-    # The old sidebar/stacked pages are gone.
-    assert win.findChild(QStackedWidget) is None
+    # The old sidebar/navigation stack is gone. QTabWidget (used by panels)
+    # creates an internal QStackedWidget, so target the old nav stack by name.
+    stacks = [s for s in win.findChildren(QStackedWidget)
+              if s.objectName() == "content"]
+    assert stacks == []
     assert not hasattr(win, "nav_buttons")
     # The shell regions exist.
     for name in ("topbar", "assets_panel", "preview_panel",

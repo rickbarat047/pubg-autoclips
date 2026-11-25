@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from .editor.assets_panel import AssetsPanel
 from .editor.editor_window import EditorWindow
 
 from .. import APP_NAME, __version__
@@ -80,6 +81,12 @@ class MainWindow(EditorWindow):
         ]
         for p in self.pages:
             p.hide()
+
+        # Wire the real Assets panel into the shell and keep a ref alive.
+        self.assets = AssetsPanel(self.ctx)
+        self.install_panel(self.assets_panel, self.assets)
+        self.search_changed.connect(self.assets.filter)
+        self.assets.clip_selected.connect(self.open_player_for_highlight)
         self._connect()
 
     def _connect(self) -> None:
