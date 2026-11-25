@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
 from .editor.assets_panel import AssetsPanel
 from .editor.editor_window import EditorWindow
 from .editor.preview_panel import PreviewPanel
+from .editor.inspector_panel import InspectorPanel
+from .editor.timeline_panel import TimelinePanel
 
 from .. import APP_NAME, __version__
 from ..bootstrap import AppContext
@@ -92,6 +94,16 @@ class MainWindow(EditorWindow):
         # Wire the real centre preview panel into the shell.
         self.preview = PreviewPanel(self)
         self.install_panel(self.preview_panel, self.preview)
+        # Wire inspector + timeline panels into the shell.
+        self.inspector = InspectorPanel(self)
+        self.install_panel(self.inspector_panel, self.inspector)
+        self.timeline = TimelinePanel(self)
+        self.install_panel(self.timeline_panel, self.timeline)
+        self.preview.position_changed.connect(self.timeline.set_playhead)
+        self.timeline.playhead_changed.connect(self.preview.seek)
+        self.timeline.range_added.connect(self._on_manual_range_added)
+        self.inspector.bounds_changed.connect(self._on_manual_bounds_changed)
+        self.inspector.add_at_playhead.connect(self._on_add_at_playhead)
         self._connect()
 
     def _connect(self) -> None:
@@ -163,6 +175,40 @@ class MainWindow(EditorWindow):
         """Filter the hidden clip gallery; the real Assets panel takes over in T5."""
         if hasattr(self.clips, "filter_text"):
             self.clips.filter_text(text)
+
+    @Slot(float, float)
+    def _on_manual_range_added(self, start: float, end: float) -> None:
+        """Persist a manual clip range dragged on the timeline."""
+        if self.current_match_id is None or end - start < 0.5:
+            return
+        sid = self.ctx.db.add_manual_segment(self.current_match_id, start, end,
+                                             "Added by you")
+        self._load_segments_into_shell()
+
+    @Slot(int, float, float)
+    def _on_manual_bounds_changed(self, manual_id: int, start: float,
+                                  end: float) -> None:
+        """Persist an edited manual segment's start/end."""
+        if manual_id:
+            self.ctx.db.update_manual_segment(int(manual_id), start, end)
+            self._load_segments_into_shell()
+
+    @Slot()
+    def _on_add_at_playhead(self) -> None:
+        self.timeline.add_at_playhead()
+
+    def _load_segments_into_shell(self) -> None:
+        """Reload segments into the timeline and select the first for inspector."""
+        if self.current_match_id is None:
+            return
+        m = self.ctx.db.get_match(self.current_match_id)
+        if not m:
+            return
+        self.compile.set_match(self.current_match_id)
+        segments = getattr(self.compile, "segments", [])
+        self.timeline.set_segments(segments, m.duration)
+        if segments:
+            self.inspector.set_segment(segments[0])
 
     def navigate(self, index: int) -> None:
         """Compatibility no-op: the editor is one window, not a stacked page set."""
