@@ -7,9 +7,11 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QThread, Slot
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
-    QButtonGroup, QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
-    QStackedWidget, QStatusBar, QVBoxLayout, QWidget,
+    QDialog, QHBoxLayout, QLabel, QMessageBox, QPushButton,
+    QVBoxLayout, QWidget,
 )
+
+from .editor.editor_window import EditorWindow
 
 from .. import APP_NAME, __version__
 from ..bootstrap import AppContext
@@ -52,13 +54,9 @@ NAV = [
 NAV_TARGETS = (PAGE_DASHBOARD, PAGE_IMPORT, PAGE_EXPORTED)
 
 
-class MainWindow(QMainWindow):
+class MainWindow(EditorWindow):
     def __init__(self, ctx: AppContext) -> None:
-        super().__init__()
-        self.ctx = ctx
-        self.setWindowTitle(f"{APP_NAME} v{__version__}")
-        self.resize(1280, 800)
-        self.setMinimumSize(1024, 640)
+        super().__init__(ctx)
         self._analysis_thread: QThread | None = None
         self._analysis_worker = None  # keep alive: Qt does not hold a Python ref
         self._export_thread: QThread | None = None
@@ -71,68 +69,20 @@ class MainWindow(QMainWindow):
         self._current_job_id: int | None = None
         self.current_match_id: int | None = None
 
-        self._build_ui()
-        self._connect()
-
-    def _build_ui(self) -> None:
-        root = QWidget()
-        h = QHBoxLayout(root)
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(0)
-        sidebar = QWidget()
-        sidebar.setObjectName("sidebar")
-        sl = QVBoxLayout(sidebar)
-        sl.setContentsMargins(14, 18, 14, 14)
-        sl.setSpacing(8)
-        brand = QLabel(APP_NAME)
-        brand.setObjectName("brand")
-        sub = QLabel("AUTOCLIP STUDIO")
-        sub.setObjectName("brandSub")
-        sl.addWidget(brand); sl.addWidget(sub)
-        sl.addSpacing(18)
-
-        self.nav_group = QButtonGroup(self)
-        self.nav_group.setExclusive(True)
-        self.nav_buttons = []
+        # The visible shell (topbar / panels / timeline) is built by
+        # EditorWindow.__init__.  Old page widgets are kept as hidden workflow
+        # helpers so the analysis/export/compilation orchestration keeps working
+        # until the editor panels are wired in the following tasks.
         self.pages: list[QWidget] = [
             DashboardPage(self.ctx), ImportPage(self.ctx), AnalysisPage(),
             ClipsPage(self.ctx), EditorPage(self.ctx), CompilePage(self.ctx),
             SettingsPage(self.ctx), AboutPage(), ExportedClipsPage(self.ctx),
         ]
-        for i, (name, icon) in enumerate(NAV):
-            b = QPushButton(f"  {icon}   {name}")
-            b.setObjectName("navBtn")
-            b.setCheckable(True)
-            b.setCursor(Qt.PointingHandCursor)
-            self.nav_group.addButton(b, i)
-            sl.addWidget(b)
-            self.nav_buttons.append(b)
-        self.nav_buttons[0].setChecked(True)
-        sl.addStretch()
-
-        try:
-            hw = detect_hardware()
-            info = QLabel(f"{hw.cpu.cores_logical} threads · "
-                          f"{hw.memory.total_gb:.0f} GB RAM\n{hw.gpu.vendor or 'GPU'}")
-            info.setObjectName("muted")
-            info.setWordWrap(True)
-            sl.addWidget(info)
-        except Exception:
-            pass
-        sl.addWidget(QLabel(f"v{__version__} · local-first"))
-
-        self.stack = QStackedWidget()
-        self.stack.setObjectName("content")
         for p in self.pages:
-            self.stack.addWidget(p)
-        h.addWidget(sidebar, 0)
-        h.addWidget(self.stack, 1)
-        self.setCentralWidget(root)
-        self.setStatusBar(QStatusBar())
-        self.statusBar().showMessage("Ready")
+            p.hide()
+        self._connect()
 
     def _connect(self) -> None:
-        self.nav_group.idClicked.connect(self._on_nav_clicked)
         dash: DashboardPage = self.pages[0]
         self.dash = dash
         imp: ImportPage = self.pages[1]
@@ -142,11 +92,11 @@ class MainWindow(QMainWindow):
         self.compile: CompilePage = self.pages[PAGE_EXPORT]
         self.settings_page: SettingsPage = self.pages[PAGE_SETTINGS]
         self.exported: ExportedClipsPage = self.pages[PAGE_EXPORTED]
-        dash.import_requested.connect(lambda: self.navigate(PAGE_IMPORT))
+        dash.import_requested.connect(self.open_import)
         dash.review_requested.connect(self.open_review)
-        dash.highlights_requested.connect(lambda: self.navigate(PAGE_CLIPS))
-        dash.settings_requested.connect(lambda: self.navigate(PAGE_SETTINGS))
-        dash.about_requested.connect(lambda: self.navigate(PAGE_ABOUT))
+        dash.highlights_requested.connect(self.open_highlights)
+        dash.settings_requested.connect(self.open_settings)
+        dash.about_requested.connect(self.open_about)
         self.exported.review_requested.connect(self.open_review)
         imp.match_ready.connect(self.start_analysis)
         self.analysis.cancel_requested.connect(self.cancel_analysis)
@@ -159,22 +109,58 @@ class MainWindow(QMainWindow):
         self.settings_page.calibrate_requested.connect(self.open_calibration)
         self.settings_page.settings_saved.connect(self._on_settings_saved)
 
-    @Slot(int)
-    def _on_nav_clicked(self, nav_id: int) -> None:
-        """Translate sidebar button ids to stack page indexes."""
-        if 0 <= nav_id < len(NAV_TARGETS):
-            self.navigate(NAV_TARGETS[nav_id])
+        # Top-bar shell signals.
+        self.import_requested.connect(self.open_import)
+        self.settings_requested.connect(self.open_settings)
+        self.about_requested.connect(self.open_about)
+        self.calibration_requested.connect(self.open_calibration)
+        self.export_requested.connect(self._shell_export)
+        self.search_changed.connect(self._shell_search)
 
-    @Slot(int)
+    # ---------- Shell-driven navigation (dialogs, no stacked pages) ----------
+    def open_import(self) -> None:
+        """Bring the (hidden) import page forward as a dialog for file picking."""
+        page = self.pages[PAGE_IMPORT]
+        page.setParent(self, Qt.Dialog)
+        page.show()
+
+    def open_settings(self) -> None:
+        page = self.pages[PAGE_SETTINGS]
+        page.setParent(self, Qt.Dialog)
+        page.show()
+
+    def open_about(self) -> None:
+        page = self.pages[PAGE_ABOUT]
+        page.setParent(self, Qt.Dialog)
+        page.show()
+
+    def open_highlights(self) -> None:
+        page = self.clips
+        if self.current_match_id is not None:
+            page.set_match(self.current_match_id)
+        page.setParent(self, Qt.Dialog)
+        page.show()
+
+    def _shell_export(self) -> None:
+        """Export the current match's compilation from the top-bar button."""
+        if self.current_match_id is not None:
+            self.compile.set_match(self.current_match_id)
+            self.start_compilation(self._compilation_request())
+
+    def _shell_search(self, text: str) -> None:
+        """Filter the hidden clip gallery; the real Assets panel takes over in T5."""
+        if hasattr(self.clips, "filter_text"):
+            self.clips.filter_text(text)
+
     def navigate(self, index: int) -> None:
-        self.stack.setCurrentIndex(index)
+        """Compatibility no-op: the editor is one window, not a stacked page set."""
         if index == PAGE_DASHBOARD:
             self.pages[PAGE_DASHBOARD].refresh()
-        if index == PAGE_EXPORTED:
+        elif index == PAGE_EXPORTED:
             self.exported.refresh()
-        if index == PAGE_CLIPS and self.current_match_id is not None:
+        elif index == PAGE_CLIPS and self.current_match_id is not None:
             self.clips.set_match(self.current_match_id)
-        if index == PAGE_EXPORT and self.current_match_id is not None:
+        elif index == PAGE_EXPORT and self.current_match_id is not None:
             self.compile.set_match(self.current_match_id)
 
     @Slot(int)
