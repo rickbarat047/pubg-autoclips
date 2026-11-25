@@ -26,14 +26,17 @@
   - Clip selection with pre/post-roll, 20–60 s bounds, overlap merging and
     duplicate removal.
   - Pause/resume and cancel via cancellation tokens.
-- **UI**: Premium dark-charcoal/electric-lime theme with a simple three-item
-  sidebar (Dashboard, Import, Exported Clips) so new users are never lost.
-  Dashboard has live DB statistics plus a "Review latest match" shortcut and
-  small Settings/About access; import and analysis progress pages; highlight
-  gallery with thumbnails/filters/keep-discard and a ▶ Play button on every
-  card that opens the real clip from the original recording; a Review & Export
-  page that opens automatically after analysis with an inline player, a
-  full-match timeline and editable segments; comprehensive settings; About.
+- **UI**: Single-window editor workspace — one premium dark-charcoal/lime
+  window matching the reference design: top bar (brand, clip search, Import /
+  Settings / About / Calibrate, lime EXPORT), left Assets panel (Media/Clips
+  tabs with background-worker thumbnails and search), centre Preview with real
+  playback + timecode, right Inspector (editable clip start/end, Add/Split/
+  Remove), bottom full-match Timeline (ruler, coloured clip track, draggable
+  lime playhead, drag-to-add manual ranges). A result card (Play / Open Folder /
+  Back) appears after export. Settings/About/Calibration open as dialogs. All
+  colours derive from a central token module; every visible button is wired to
+  a real function. The former multi-page sidebar workflow is gone from the
+  visible UI (page modules remain as hidden workflow helpers).
 - **Rendering/export**: FFmpeg vertical layouts (blurred background default,
   crop, pillarbox, original-aspect), 1080×1920/30 FPS/H.264/AAC, original
   gameplay audio preserved, path-with-spaces safe, encoder capability detection
@@ -81,7 +84,7 @@ installed to `bin/`.
 
 ## 4. Tests executed and results
 
-- `python -m pytest -q` → **88 passed** (including 7-kill coverage, compilation planning,
+- `python -m pytest -q` → **127 passed** (including 7-kill coverage, compilation planning,
   chronological ordering, overlap merging, duplicate removal, pre/post
   boundaries, FFmpeg concatenation, audio preservation, output resolution,
   integrity, temp cleanup, failed-export recovery, FFprobe metadata, validation,
@@ -89,11 +92,17 @@ installed to `bin/`.
   scoring, grouping/ranking, clip boundaries/merging/deduplication, SQLite
   persistence, cancellation tokens, end-to-end pipeline on synthetic footage,
   FFmpeg vertical render + validation + audio preservation, 9 missed-knock
-  regression tests in `tests/test_missing_knocks.py`, and 10 review/manual-clip
-  tests (manual segment persistence, player dialog, play button, review page
-  drag-to-add, exported clips page, navigation flow).
-- GUI smoke tests: offscreen construction of all 9 pages, onboarding wizard and
-  calibration dialog; real Windows launch with auto-quit — all succeeded.
+  regression tests, and the single-window editor suite: design tokens, cancellation
+  integrity, core bug fixes, editor shell, assets panel, preview panel, inspector/
+  timeline with pixel→time drag mapping, export workflow/dialogs, shared-widget
+  fixes and colour sweep).
+- GUI smoke tests: offscreen construction of the single-window editor shell and
+  all five regions, hidden workflow pages, onboarding wizard and calibration
+  dialog; real Windows launch with auto-quit — all succeeded.
+- Known test-process note: after all tests report passing, the Windows pytest
+  process can exit with a native code (0xC0000409/0xC0000005) during DLL
+  teardown (Qt-multimedia + ONNX Runtime + NumPy). This happens after the suite
+  completes with no Python frame and does not reflect a test or product failure.
 - Real RapidOCR smoke test: read `"TESTPLAYER killed BOT"` from a synthetic
   frame with confidence 1.0.
 - Real end-to-end OCR test on synthetic kill-feed video: 1 confirmed event at
@@ -110,6 +119,11 @@ installed to `bin/`.
   connection, appeared in the segment list labelled "Added by you", and was
   included in an 11-segment compilation. Output verified 1080×1920, 30 FPS,
   H.264/AAC, 187 s, 5610 frames with a clean full decode (0 errors).
+- **Single-editor workflow verification (2026-11-25)**: the editor's timeline
+  drag-to-add path persisted a manual 700–720 s range, `CompilePage.set_match`
+  loaded it as a labelled MANUAL segment, and the compilation builder produced
+  an 11-segment MP4 in 92 s. Verified 1080×1920, 30 FPS, H.264/AAC, 187 s,
+  5610 frames with a clean full decode; manual row and temp files cleaned up.
 
 No PUBG-specific accuracy claim is made: kill vs knock is distinguished by feed
 icons rather than text, so events are reported with confidence and evidence
@@ -148,6 +162,11 @@ rather than as verified knock labels.
   been validated on a clean Windows installation without Python installed.
 - One-folder distribution is ~789 MB (PySide6 WebEngine + FFmpeg DLLs); a
   smaller build can be produced by excluding unused PySide6 modules.
+- DPI scaling (100/125/150%) was not exercised on a real display; layout uses
+  Qt stretch/minimum sizes and a scrollable report area but per-DPI visual
+  verification remains outstanding.
+- The Windows pytest process can exit with a native code during DLL teardown
+  after the suite fully passes (no Python frame); all 127 tests pass every run.
 
 ## 7. Exact launch command
 

@@ -40,11 +40,12 @@ rank highlight candidates. No cloud services, paid APIs or mandatory online AI.
   optional mode.
 - Vertical export via FFmpeg with four layouts (blurred background default,
   crop, pillarbox, original-aspect), original audio preserved, H.264/AAC MP4.
-- Highlight gallery with thumbnails, filters, keep/discard and export selection.
-- Dedicated Export page with compilation stats, a visual timeline, editable
-  segment boundaries, preview rendering and one-click Open Folder / Play Video.
-- Simple clip editor with scrubbing, boundary adjustment and vertical preview.
-- Dashboard with live statistics; About page; settings for all major knobs.
+- Single-window editor: left Assets panel (clips + background thumbnails + search),
+  centre Preview player with timecode, right Inspector (editable segment bounds),
+  and a bottom timeline with a playhead, detected segments and drag-to-add ranges.
+- One-click EXPORT builds a vertical compilation; a result card offers Play Video,
+  Open Folder and Back to workspace.
+- Settings and About as dialogs; settings for all major knobs.
 - Automated pytest suite with synthetic video fixtures.
 
 ### Not implemented / explicitly limited
@@ -351,45 +352,46 @@ Re-analysed a real 26-minute recording (`2026-11-18 21-23-06.mp4`, 1598 s,
 - End-to-end compilation: **10 segments, 11/11 feed events covered**, rendered to
   a 1080x1920 / 30 fps / H.264 + AAC MP4 (167 s, 5010 frames, 121 MB) that
   passes a clean full decode.
-- Full test suite: **88 passed**.
+- Full test suite: **127 passed**.
 
-All 88 tests pass and the output decodes without errors. Note that the PUBG feed
+All 127 tests pass and the output decodes without errors. Note that the PUBG feed
 uses icons (not words) to distinguish a knock from a kill, so OCR cannot reliably
 label that difference; events are reported by confidence, not as a verified
-knock/kill count.
+knock/kill count. (On Windows, pytest may report all tests passing and then exit
+with a native DLL shutdown error — a Qt-multimedia / ONNX Runtime / NumPy
+teardown-order race with no Python frame; it happens after the tests finish and
+does not affect the app.)
 
-### Review & Export workflow (play, adjust, then export)
+### Single-window editor workflow
 
-The end of the workflow is now a single calm review step. Design and plan are in
-`docs/superpowers/specs/` and `docs/superpowers/plans/`.
+The whole app is now one editor workspace — no multi-page sidebar to learn. Design
+and plan are in `docs/superpowers/specs/` and `docs/superpowers/plans/`.
 
-- The sidebar has only three items: **Dashboard**, **Import**, and **Exported
-  Clips**. Highlights, Editor and Export no longer clutter the navigation — they
-  happen as part of reviewing a finished analysis. Settings and About are one
-  click away from the Dashboard.
-- Every highlight card has a **▶ Play** button that opens a small player on the
-  original recording, so you can watch a moment before deciding to export it.
-- After analysis the app **opens the Review & Export page automatically**. It
-  shows a player for the whole match, a full-match timeline with coloured
-  markers for every detected segment, and the editable segment list.
-- **Missed a knock?** Drag on any empty part of the timeline to select that
-  range (the player seeks as you drag). You can also click **+ Add 20s here** to
-  grab the 20 seconds at the current playhead. Manually added segments are
-  labelled **"Added by you"** in magenta.
-- Manual ranges are saved in SQLite (`manual_segments` table) and survive
-  restarts. They are always included in the export and are never dropped by the
-  automatic clip limit. Clicking a marker seeks the player; each row has editable
-  start/end times and a Remove button.
-- Auto-export now defaults **off** so you review first. If you explicitly enable
-  it in Settings, it still runs in the background after analysis.
-- **Exported Clips** lists finished videos with Play / Open Folder actions and a
-  "Review latest match" shortcut.
+- A **top bar** holds the app brand, a search box, and the **Import / Settings /
+  About / Calibrate** actions plus a lime **EXPORT** button.
+- A left **Assets** panel lists imported matches and detected clips (with
+  background-generated thumbnails); searching filters them.
+- The centre **Preview** panel plays the real footage with playback controls and
+  a live timecode; clicking a clip seeks to it.
+- The right **Inspector** shows the selected segment's category, score and
+  confidence, with editable start/end times and Add / Split / Remove actions.
+- The bottom **Timeline** shows the whole match with coloured detected segments
+  and a lime playhead. **Missed a knock?** Drag on empty timeline space to select
+  that range, or click **Add 20s at playhead**. Clicking a marker moves the
+  playhead and seeks the player.
+- Manual ranges are labelled **"Added by you"**, saved in SQLite
+  (`manual_segments` table), survive restarts, and are always included in the
+  export — never dropped by the automatic clip limit.
+- **EXPORT** gathers the current timeline segments and builds one vertical
+  compilation through the existing worker path. A result card then offers **Play
+  Video / Open Folder / Back to workspace**.
+- All colours and type sizes come from one token module (`app/ui/tokens.py`) and
+  the theme stylesheet. Settings, About and Calibration open as dialogs.
 
-Verified against real footage: a manual range added via the Review page was
-persisted across a fresh database connection, included in an 11-segment
-compilation, and exported to a 1080x1920 / 30 fps / H.264 + AAC MP4 that passed a
-clean full decode. The frozen `.exe` bundles the Qt Multimedia plugins needed by
-the player.
+Verified against real footage (26.6-min match): a 700–720 s manual range was
+persisted, included in an 11-segment compilation, and exported to a
+1080x1920 / 30 fps / H.264 + AAC MP4 (187 s, 5610 frames) that passed a clean full
+decode (~92 s build). The frozen `.exe` bundles the Qt Multimedia plugins.
 
 ### Troubleshooting: Windows Smart App Control blocks the app
 
