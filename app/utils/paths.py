@@ -15,9 +15,11 @@ from platformdirs import user_data_dir, user_log_dir, user_cache_dir
 APP_NAME = "PUBG AutoClips"
 APP_AUTHOR = "PUBG AutoClips"
 
-# Default folder for exported vertical clips. Change this single constant to
-# relocate the default; users can still override it in Settings/Onboarding.
-DEFAULT_OUTPUT_FOLDER = "G:\\PUBG AUTOCLIPS\\exports"
+# Portable default folder for exported vertical clips: the user's Videos
+# library.  No machine-specific drive letter — this works on any Windows
+# account and on any drive.  Users can override it in Settings/Onboarding; a
+# saved choice in settings.json always takes precedence over this default.
+DEFAULT_OUTPUT_FOLDER = str(Path.home() / "Videos" / "PUBG AutoClips" / "exports")
 
 
 def default_output_folder() -> str:

@@ -92,7 +92,12 @@ class MediaProbe:
             ffprobe, "-v", "error", "-print_format", "json",
             "-show_format", "-show_streams", str(path),
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        # Windows: suppress the console window and give the child its own
+        # process group so probing never flashes a window or inherits the
+        # console control signals (same flags used by the FFmpeg runners).
+        flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
+                              stdin=subprocess.DEVNULL, creationflags=flags)
         if proc.returncode != 0:
             raise InvalidVideoError(
                 f"FFprobe could not read the file: {proc.stderr.strip()[:300]}"

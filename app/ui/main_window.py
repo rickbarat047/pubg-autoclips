@@ -444,8 +444,11 @@ class MainWindow(QMainWindow):
                 clip_id=hid, path=req.output_path, status="pending",
                 layout=self.ctx.settings.render.layout)
             jobs.append(ExportJob(req, hid, rec.id))
+            self.ctx.jobs.register(rec.id, "export", self.current_match_id,
+                                   CancellationToken())
         if not jobs:
             return
+        self._export_ids = [j.export_id for j in jobs]
         token = CancellationToken()
         self._export_token = token
         manager = ExportManager(self.ctx.settings, self.ctx.settings.ffmpeg_path)
@@ -469,10 +472,19 @@ class MainWindow(QMainWindow):
     def _export_one_done(self, export_id: int, path: str) -> None:
         size = Path(path).stat().st_size if Path(path).exists() else 0
         self.ctx.db.update_export(export_id, status="done", size_bytes=size)
+        self.ctx.jobs.unregister(export_id)
         self.statusBar().showMessage(f"Exported {Path(path).name}")
 
     @Slot(int, int)
     def _export_finished(self, ok: int, failed: int) -> None:
+        # Any export from this batch left 'pending' did not succeed — mark it
+        # failed and clear its job so the UI never shows a stuck pending item.
+        from ..rendering.export_manager import finalize_failed_export
+        for eid in getattr(self, "_export_ids", []):
+            rec = self.ctx.db.get_export(eid)
+            if rec is not None and rec.status == "pending":
+                finalize_failed_export(self.ctx.db, self.ctx.jobs, eid,
+                                       "Export did not complete")
         self.pages[0].refresh()
         QMessageBox.information(self, "Export complete",
                                 f"Exported {ok} clip(s)." +

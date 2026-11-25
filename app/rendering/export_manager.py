@@ -17,6 +17,23 @@ from .vertical_layout import build_video_filter, video_encoder
 log = get_logger("rendering.export")
 
 
+def finalize_failed_export(db, jobs, export_id: int, error: str) -> None:
+    """Mark an export row failed and unregister its active job.
+
+    Called from export failure/cancel paths so a failed export never stays
+    'pending' and its job never lingers as active.  Both operations are
+    best-effort: a failure here must not mask the original export error.
+    """
+    try:
+        db.update_export(export_id, status="failed", error=error)
+    except Exception:  # noqa: BLE001
+        log.exception("Could not mark export %s failed", export_id)
+    try:
+        jobs.unregister(export_id)
+    except Exception:  # noqa: BLE001
+        log.exception("Could not unregister export job %s", export_id)
+
+
 @dataclass
 class ExportRequest:
     video_path: str

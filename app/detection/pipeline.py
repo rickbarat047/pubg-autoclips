@@ -1,6 +1,7 @@
 """AnalysisPipeline: orchestrate all detection engines and persist results."""
 from __future__ import annotations
 
+import gc
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -27,6 +28,19 @@ from .vision.activity_detector import ActivityDetector, ActivityWindow
 log = get_logger("detection.pipeline")
 
 OverallCb = Callable[[float, str, str], None]  # (fraction, stage, message)
+
+
+def release_frames(frames: list) -> None:
+    """Drop decoded-frame references in place so NumPy buffers can be freed.
+
+    Full-resolution frames for a long match can occupy gigabytes.  Once OCR
+    and visual sampling finish they are no longer needed; clearing the list
+    (and nudging the cyclic GC) lets Python reclaim that RAM before the
+    scoring/export stages run.
+    """
+    if frames is not None:
+        frames.clear()
+    gc.collect()
 
 
 def compute_sample_interval(settings: AppSettings, duration: float) -> float:
@@ -144,6 +158,8 @@ class AnalysisPipeline:
                 result.feed_events = self.feed.detect_from_frames(
                     frames, token=token,
                     progress=lambda f, m: stage_progress(2, 0.2 + f * 0.8, m))
+                # Decoded frames are no longer needed — free the RAM before scoring.
+                release_frames(frames)
             else:
                 # Fallback: original OpenCV seeking path.
                 stage_progress(0, 1.0, "Using seek-based analysis")

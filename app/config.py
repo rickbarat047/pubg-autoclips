@@ -153,21 +153,13 @@ class AppSettings(BaseModel):
         return str(v).strip() if v is not None else ""
 
     def apply_preset(self, name: PresetName | None = None) -> None:
-        """Apply sampling parameters associated with a processing preset."""
+        """Set the active preset name without overwriting manual detection values.
+
+        Detection intervals/thresholds are independently editable in Settings,
+        so applying a preset on every save must not silently revert them.
+        """
         name = name or self.processing.preset
         self.processing.preset = name
-        if name == "fast":
-            self.kill_feed.sample_interval_sec = 3.0
-            self.visual.sample_interval_sec = 3.0
-            self.kill_feed.confidence_threshold = 0.50
-        elif name == "balanced":
-            self.kill_feed.sample_interval_sec = 2.0
-            self.visual.sample_interval_sec = 2.0
-            self.kill_feed.confidence_threshold = 0.45
-        else:  # accurate
-            self.kill_feed.sample_interval_sec = 1.0
-            self.visual.sample_interval_sec = 1.0
-            self.kill_feed.confidence_threshold = 0.40
 
     @classmethod
     def load(cls, path: Path | None = None) -> "AppSettings":
