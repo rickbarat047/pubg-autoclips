@@ -356,11 +356,6 @@ class MainWindow(EditorWindow):
             token.resume()
 
     # ---------- Clips / export ----------
-    @Slot(int)
-    def open_editor(self, hid: int) -> None:
-        self.editor.load_highlight(hid)
-        self.navigate(PAGE_EDITOR)
-
     def _make_export_request(self, hid: int, start: float | None = None,
                              end: float | None = None) -> ExportRequest | None:
         h: Highlight | None = self.ctx.db.get_highlight(hid)
