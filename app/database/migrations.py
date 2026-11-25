@@ -114,6 +114,16 @@ MIGRATIONS: list[tuple[int, str]] = [
     CREATE INDEX IF NOT EXISTS idx_manual_segments_match
         ON manual_segments(match_id);
     """),
+    (4, """
+    CREATE TABLE IF NOT EXISTS discarded_segments (
+        id INTEGER PRIMARY KEY,
+        match_id INTEGER NOT NULL,
+        signature TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_discarded_segments_match
+        ON discarded_segments(match_id);
+    """),
 ]
 
 

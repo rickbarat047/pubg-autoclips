@@ -51,6 +51,25 @@ class Segment:
         return (self.start + self.end) / 2.0
 
 
+def segment_signature(seg: "Segment") -> str:
+    """Stable identity for a segment so a user's discard survives re-analysis.
+
+    Tool-made segments are regenerated from highlights/events on every reload;
+    a stable signature lets us remember which ones the user removed without
+    changing the detector or the database schema of those tables. Manual
+    segments already carry a ``manual_id`` and are handled separately.
+    """
+    evidence = seg.evidence or {}
+    if evidence.get("manual_id") is not None:
+        return f"manual:{evidence['manual_id']}"
+    if seg.highlight_ids:
+        return f"h:{seg.highlight_ids[0]}"
+    if seg.event_ids:
+        return f"e:{seg.event_ids[0]}"
+    # Fallback for combat/unknown windows with neither: time bucket.
+    return f"t:{seg.start:.1f}:{seg.end:.1f}"
+
+
 def _event_center(event: Event | None, highlight: Highlight) -> float:
     """Best available timestamp of the actual event."""
     if event and event.timestamp > 0:

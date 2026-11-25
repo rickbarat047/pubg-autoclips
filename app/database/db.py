@@ -275,6 +275,38 @@ class DatabaseManager:
         with self.transaction() as conn:
             conn.execute("DELETE FROM manual_segments WHERE id=?", (segment_id,))
 
+    # ---------- discarded (tool-made) segments ----------
+    def add_discarded_segment(self, match_id: int, signature: str) -> int:
+        """Remember that the user removed a tool-made clip (idempotent)."""
+        with self.transaction() as conn:
+            row = conn.execute(
+                "SELECT id FROM discarded_segments WHERE match_id=? AND signature=?",
+                (match_id, signature),
+            ).fetchone()
+            if row is not None:
+                return int(row[0])
+            cur = conn.execute(
+                "INSERT INTO discarded_segments (match_id, signature, created_at) "
+                "VALUES (?,?,?)",
+                (match_id, signature, utcnow()),
+            )
+            return int(cur.lastrowid)
+
+    def list_discarded_segments(self, match_id: int) -> set[str]:
+        with self.transaction() as conn:
+            rows = conn.execute(
+                "SELECT signature FROM discarded_segments WHERE match_id=?",
+                (match_id,),
+            ).fetchall()
+        return {str(row[0]) for row in rows}
+
+    def delete_discarded_segment(self, match_id: int, signature: str) -> None:
+        with self.transaction() as conn:
+            conn.execute(
+                "DELETE FROM discarded_segments WHERE match_id=? AND signature=?",
+                (match_id, signature),
+            )
+
     # ---------- exports ----------
     def add_export(self, **kwargs) -> Export:
         kwargs.setdefault("created_at", utcnow())

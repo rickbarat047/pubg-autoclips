@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (
 
 from ..bootstrap import AppContext
 from ..clips.compilation_builder import (
-    Segment, category_counts, kill_coverage, select_segments, total_duration,
+    Segment, category_counts, kill_coverage, segment_signature, select_segments,
+    total_duration,
 )
 from ..utils.logging import get_logger
 from .video_player_dialog import VideoPlayerDialog
@@ -357,6 +358,12 @@ class CompilePage(QWidget):
         events = self.ctx.db.list_events(match_id)
         self.events = events
         self.segments = select_segments(highlights, events, self.ctx.settings, m.duration)
+        # A user's discards of tool-made clips survive re-analysis: drop any
+        # segment whose stable signature was previously discarded.
+        discarded = self.ctx.db.list_discarded_segments(match_id)
+        if discarded:
+            self.segments = [s for s in self.segments
+                             if segment_signature(s) not in discarded]
         # Manually added ranges are always kept, even past the automatic clip
         # cap — they exist precisely because the detector missed them.
         for row in self.ctx.db.list_manual_segments(match_id):

@@ -1,7 +1,6 @@
 """AnalysisPipeline: orchestrate all detection engines and persist results."""
 from __future__ import annotations
 
-import gc
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -35,12 +34,14 @@ def release_frames(frames: list) -> None:
 
     Full-resolution frames for a long match can occupy gigabytes.  Once OCR
     and visual sampling finish they are no longer needed; clearing the list
-    (and nudging the cyclic GC) lets Python reclaim that RAM before the
-    scoring/export stages run.
+    drops the references so CPython reclaims the NumPy buffers immediately by
+    refcount.  We deliberately do NOT call gc.collect() here: this runs on the
+    analysis worker thread and a concurrent collect() races Qt's main-thread
+    GC, which can abort the process.  Frames have no reference cycles, so the
+    explicit collection is unnecessary.
     """
     if frames is not None:
         frames.clear()
-    gc.collect()
 
 
 def compute_sample_interval(settings: AppSettings, duration: float) -> float:

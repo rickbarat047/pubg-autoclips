@@ -20,6 +20,7 @@ from .editor.timeline_panel import TimelinePanel
 from .. import APP_NAME, __version__
 from ..bootstrap import AppContext
 from ..config import AppSettings
+from ..clips.compilation_builder import segment_signature
 from ..core.task_queue import CancellationToken, CancelledError
 from ..database.models import Highlight
 from ..rendering.export_manager import ExportManager, ExportRequest
@@ -213,13 +214,21 @@ class MainWindow(EditorWindow):
 
     @Slot()
     def _on_remove_segment(self) -> None:
-        """Remove the manual clip currently selected in the Inspector."""
-        mid = getattr(self.inspector, "_manual_id", None)
-        if mid is None:
-            QMessageBox.information(self, "Remove clip",
-                                    "Only clips you added can be removed here.")
+        """Remove the clip currently selected in the Inspector.
+
+        Works for both tool-made clips and clips added by the user. Tool clips
+        are regenerated on every reload, so we persist a discard signature to
+        keep them out of the timeline and the export after re-analysis.
+        """
+        seg = getattr(self.inspector, "_segment", None)
+        if seg is None:
             return
-        self.ctx.db.delete_manual_segment(int(mid))
+        mid = getattr(self.inspector, "_manual_id", None)
+        if mid is not None:
+            self.ctx.db.delete_manual_segment(int(mid))
+        else:
+            self.ctx.db.add_discarded_segment(
+                self.current_match_id, segment_signature(seg))
         self.inspector.set_segment(None)
         self._load_segments_into_shell()
 
@@ -401,21 +410,12 @@ class MainWindow(EditorWindow):
         self.analysis_status.setText("Analysis complete")
         if self._current_job_id is not None:
             self.ctx.jobs.unregister(self._current_job_id)
-        # Always land on the review step so the user can play and adjust clips.
-        # Explicit auto-export (advanced setting) still runs in the background.
+        # Analysis NEVER saves clips automatically. The user always reviews in
+        # the editor and clicks EXPORT explicitly. (The legacy auto-export
+        # setting is kept only for config compatibility and is no longer acted
+        # upon — see the review-before-export design.)
         if self.current_match_id is not None:
             self.open_review(self.current_match_id)
-        if self.ctx.settings.auto_export and getattr(result, "highlight_ids", None):
-            if self.ctx.settings.export_mode == "compilation":
-                self.statusBar().showMessage("Auto-building highlight compilation…")
-                self.navigate(PAGE_EXPORT)
-                self.start_compilation(self._compilation_request())
-            else:
-                ids = result.highlight_ids[:self.ctx.settings.auto_export_max_clips]
-                self.statusBar().showMessage(
-                    f"Auto-exporting top {len(ids)} clip(s) to "
-                    f"{self.ctx.settings.output_folder}")
-                self._start_export([(hid, None, None) for hid in ids])
 
     @Slot(str, str)
     def _analysis_error(self, status: str, message: str) -> None:

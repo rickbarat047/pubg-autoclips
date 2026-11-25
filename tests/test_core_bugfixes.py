@@ -75,6 +75,17 @@ def test_release_frames_frees_memory():
     assert frames == []
 
 
+def test_release_frames_does_not_force_gc(monkeypatch):
+    """No gc.collect() from the worker thread — it races Qt's GC and aborts."""
+    import gc as _gc
+    import app.detection.pipeline as pipeline
+
+    calls = []
+    monkeypatch.setattr(_gc, "collect", lambda: calls.append(1))
+    pipeline.release_frames([("1.0", object())])
+    assert calls == []
+
+
 def test_mark_export_failed_and_unregister():
     """A failed export is marked in SQLite and its job is unregistered."""
     from app.core.job_manager import JobManager
