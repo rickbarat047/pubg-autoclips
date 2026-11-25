@@ -15,6 +15,7 @@ from ..media.thumbnail import thumbnail_for_highlight
 from ..utils.paths import thumbnails_dir
 from ..workers.thumbnail_worker import ThumbJob, ThumbnailWorker
 from .widgets.common import Card, empty_state
+from .tokens import PALETTE
 
 CATEGORY_FILTERS = ["All", "KILL", "MULTI_KILL", "CLUTCH_CANDIDATE", "COMBAT", "UNCERTAIN"]
 
@@ -33,7 +34,7 @@ class ClipCard(Card):
         self.thumb = QLabel()
         self.thumb.setFixedHeight(140)
         self.thumb.setAlignment(Qt.AlignCenter)
-        self.thumb.setStyleSheet("background:#0F1214; border-radius:6px;")
+        self.thumb.setStyleSheet(f"background:{PALETTE['thumb']}; border-radius:6px;")
         self.thumb.setText("No preview")
         lay.addWidget(self.thumb)
 
@@ -46,7 +47,7 @@ class ClipCard(Card):
         tm.setObjectName("muted")
         lay.addWidget(tm)
         sc = QLabel(f"Score {highlight.score:.0f}")
-        sc.setStyleSheet("color:#E8ECEF; font-weight:600;")
+        sc.setStyleSheet(f"color:{PALETTE['heading']}; font-weight:600;")
         lay.addWidget(sc)
 
         row = QHBoxLayout()

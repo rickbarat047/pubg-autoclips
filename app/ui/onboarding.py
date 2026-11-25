@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 from ..bootstrap import AppContext
 from .calibration_dialog import CalibrationDialog
 from .widgets.common import Card
+from .tokens import PALETTE
 
 
 class OnboardingWizard(QDialog):
@@ -99,7 +100,7 @@ class OnboardingWizard(QDialog):
                 self.region = r
                 self.cal_lbl.setText(
                     f"✓ Region saved: x={r.x:.3f} y={r.y:.3f} w={r.w:.3f} h={r.h:.3f}")
-                self.cal_lbl.setStyleSheet("color:#A3E635;")
+                self.cal_lbl.setStyleSheet(f"color:{PALETTE['accent']};")
 
     def _prev(self) -> None:
         self.stack.setCurrentIndex(max(0, self.stack.currentIndex() - 1))

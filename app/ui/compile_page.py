@@ -19,18 +19,19 @@ from ..utils.logging import get_logger
 from .video_player_dialog import VideoPlayerDialog
 from .widgets.common import Card, empty_state, section
 from .widgets.step_indicator import StepIndicator
+from .tokens import PALETTE
 
 log = get_logger("ui.compile")
 
 CATEGORY_COLORS = {
-    "KILL": QColor("#A3E635"),
-    "MULTI_KILL": QColor("#B6FF3D"),
-    "CLUTCH_CANDIDATE": QColor("#FFC542"),
-    "KNOCK": QColor("#FF8A5B"),
-    "KNOCK_CANDIDATE": QColor("#FFAB8A"),
-    "COMBAT": QColor("#42C6FF"),
-    "MANUAL": QColor("#FF5EDB"),
-    "UNKNOWN": QColor("#9AA5AD"),
+    "KILL": QColor(PALETTE['accent']),
+    "MULTI_KILL": QColor(PALETTE['multi_kill']),
+    "CLUTCH_CANDIDATE": QColor(PALETTE['clutch']),
+    "KNOCK": QColor(PALETTE['knock']),
+    "KNOCK_CANDIDATE": QColor(PALETTE['knock_candidate']),
+    "COMBAT": QColor(PALETTE['combat']),
+    "MANUAL": QColor(PALETTE['manual']),
+    "UNKNOWN": QColor(PALETTE['dim_alt']),
 }
 
 
@@ -74,26 +75,26 @@ class CompilationTimeline(QWidget):
     def paintEvent(self, event) -> None:
         p = QPainter(self)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#161B1E"))
+        p.fillRect(0, 0, w, h, QColor(PALETTE['track']))
         track_y, track_h = 34, 26
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor("#22282D"))
+        p.setBrush(QColor(PALETTE['track_alt']))
         p.drawRoundedRect(8, track_y, w - 16, track_h, 5, 5)
         for i, seg in enumerate(self.segments):
             x = 8 + int((seg.start / self.match_duration) * (w - 16))
             sw = max(4, int((seg.duration / self.match_duration) * (w - 16)))
             color = CATEGORY_COLORS.get(seg.category, CATEGORY_COLORS["UNKNOWN"])
-            p.setBrush(color if i != self.selected else QColor("#FFFFFF"))
+            p.setBrush(color if i != self.selected else QColor(PALETTE['white']))
             p.drawRoundedRect(x, track_y, sw, track_h, 3, 3)
             if sw > 34:
-                p.setPen(QColor("#10150A"))
+                p.setPen(QColor(PALETTE['on_accent']))
                 p.drawText(x + 4, track_y + 18, f"{seg.start:.0f}s")
         if self._drag_start_x is not None and self._drag_cur_x is not None:
             dx1, dx2 = sorted((self._drag_start_x, self._drag_cur_x))
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(255, 94, 219, 90))
             p.drawRect(int(dx1), track_y, max(2, int(dx2 - dx1)), track_h)
-        p.setPen(QColor("#7E8A92"))
+        p.setPen(QColor(PALETTE['dim_alt2']))
         p.drawText(8, 22, "Match start")
         p.drawText(w - 78, 22, f"{self.match_duration / 60:.1f} min")
         p.drawText(8, h - 8, "Selected moments (chronological)" if self.segments
@@ -375,13 +376,13 @@ class CompilePage(QWidget):
                                              getattr(self, "events", []))
         self.stats_lbl.setText(
             f"Selected segments: <b>{len(self.segments)}</b> &nbsp;•&nbsp; "
-            f"<b style='color:#A3E635'>Kills covered: {covered}/{total_kills}</b> &nbsp;•&nbsp; "
+            f"<b style='color:{PALETTE['accent']}'>Kills covered: {covered}/{total_kills}</b> &nbsp;•&nbsp; "
             f"Confirmed kills: <b>{counts['confirmed_kills']}</b> &nbsp;•&nbsp; "
             f"Multi-kills: <b>{counts['multi_kills']}</b> &nbsp;•&nbsp; "
             f"Clutch candidates: <b>{counts['clutch_candidates']}</b> &nbsp;•&nbsp; "
             f"Knocks: <b>{counts['knocks']}</b> &nbsp;•&nbsp; "
             f"Other: <b>{counts['other']}</b><br>"
-            f"Estimated duration: <b style='color:#A3E635'>{total_duration(self.segments):.0f} s</b>"
+            f"Estimated duration: <b style='color:{PALETTE['accent']}'>{total_duration(self.segments):.0f} s</b>"
             f" ({total_duration(self.segments)/60:.1f} min) &nbsp;•&nbsp; "
             f"Output: <b>{self.ctx.settings.render.width}×{self.ctx.settings.render.height}</b>"
             f" @ {self.ctx.settings.render.fps} fps &nbsp;•&nbsp; "
@@ -403,7 +404,7 @@ class CompilePage(QWidget):
         self.last_output = path
         size_mb = Path(path).stat().st_size / 1e6 if Path(path).exists() else 0
         self.result_lbl.setText(
-            f"<b style='color:#A3E635'>✓ Export complete</b><br>"
+            f"<b style='color:{PALETTE['accent']}'>✓ Export complete</b><br>"
             f"{Path(path).name}<br>"
             f"Duration {duration:.1f}s &nbsp;•&nbsp; {size_mb:.1f} MB<br>"
             f"Saved to {Path(path).parent}"
@@ -505,7 +506,7 @@ class CompilePage(QWidget):
     def _focus_segment(self, index: int) -> None:
         for i, row in enumerate(getattr(self, "_rows", [])):
             row.setStyleSheet(
-                "border:1px solid #A3E635; border-radius:6px;" if i == index else "")
+                "border:1px solid {PALETTE['accent']}; border-radius:6px;" if i == index else "")
         # Seek the player to the clicked marker so the user sees that moment.
         if 0 <= index < len(self.segments) and self._player is not None:
             self._player.seek(self.segments[index].start)

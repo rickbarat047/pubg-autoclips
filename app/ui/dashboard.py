@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 
 from ..bootstrap import AppContext
 from .widgets.common import Card, empty_state, section_header, stat_card
+from .tokens import PALETTE
 
 
 class DashboardPage(QWidget):
@@ -123,7 +124,7 @@ class DashboardPage(QWidget):
         self.review_btn.setEnabled(self._latest_match is not None)
 
         s = self.ctx.settings
-        self.ign_lbl.setText(f"In-game name: <b style='color:#A3E635'>{s.ign or 'Not set'}</b>")
+        self.ign_lbl.setText(f"In-game name: <b style='color:{PALETTE['accent']}'>{s.ign or 'Not set'}</b>")
         self.ign_lbl.setTextFormat(Qt.RichText)
         self.out_lbl.setText(f"Output folder:\n{s.output_folder or 'Not configured'}")
 

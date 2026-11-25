@@ -9,6 +9,7 @@ from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QLabel, QPushButton, QSlider, QVBoxLayout,
 )
+from .tokens import PALETTE
 
 
 class VideoPlayerDialog(QDialog):
@@ -29,7 +30,7 @@ class VideoPlayerDialog(QDialog):
         self.setWindowTitle("Clip Preview")
         self.setMinimumWidth(560)
         self.resize(960, 680)
-        self.setStyleSheet("background: #14161a; color: #e8ecf1;")
+        self.setStyleSheet(f"background: {PALETTE['dialog_bg']}; color: {PALETTE['dialog_text']};")
         self._scrubbing = False
         self._duration_ms = 0
         # Parented timers: owned by this dialog so they cannot fire into a

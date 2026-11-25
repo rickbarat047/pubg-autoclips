@@ -16,6 +16,7 @@ from ..media.media_validator import MediaValidator
 from ..utils.logging import get_logger
 from .widgets.common import Card, ToastLabel
 from .widgets.step_indicator import StepIndicator
+from .tokens import PALETTE
 
 log = get_logger("ui.import")
 
@@ -32,7 +33,7 @@ class DropZone(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumHeight(200)
         self.setCursor(Qt.PointingHandCursor)
-        self.setStyleSheet(self.styleSheet() + "font-size: 15px; color: #9AA5AD;")
+        self.setStyleSheet(self.styleSheet() + f"font-size: 15px; color: {PALETTE['dim_alt']};")
         self.setAcceptDrops(True)
 
     def dragEnterEvent(self, e: QDragEnterEvent) -> None:
@@ -119,12 +120,12 @@ class ImportPage(QWidget):
         result = self.validator.validate(path)
         if not result.valid:
             self.meta_lbl.setText(f"❌ {Path(path).name}")
-            self.status_lbl.setStyleSheet("color:#FF8A8A;")
+            self.status_lbl.setStyleSheet(f"color:{PALETTE['soft_red']};")
             self.status_lbl.setText("\n".join("• " + e for e in result.errors))
             return
         meta = result.metadata
         self.meta_lbl.setText(
-            f"<b style='color:#A3E635'>✓ {meta.name}</b><br>"
+            f"<b style='color:{PALETTE['accent']}'>✓ {meta.name}</b><br>"
             f"Duration: {meta.duration/60:.1f} min ({meta.duration:.0f}s)<br>"
             f"Resolution: {meta.width}×{meta.height} &nbsp;•&nbsp; FPS: {meta.fps:.0f}<br>"
             f"Video: {meta.video_codec} &nbsp;•&nbsp; Audio: {meta.audio_codec or 'none'}<br>"
@@ -132,10 +133,10 @@ class ImportPage(QWidget):
         )
         self.meta_lbl.setTextFormat(Qt.RichText)
         if result.warnings:
-            self.status_lbl.setStyleSheet("color:#E8C56A;")
+            self.status_lbl.setStyleSheet(f"color:{PALETTE['soft_yellow']};")
             self.status_lbl.setText("\n".join("⚠ " + w for w in result.warnings))
         else:
-            self.status_lbl.setStyleSheet("color:#A3E635;")
+            self.status_lbl.setStyleSheet(f"color:{PALETTE['accent']};")
             self.status_lbl.setText("✓ Validation passed — ready to analyse.")
         self.current_path = path
         self.import_btn.setEnabled(True)

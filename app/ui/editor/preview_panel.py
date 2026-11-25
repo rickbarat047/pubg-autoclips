@@ -4,6 +4,11 @@ Mirrors the proven seek behaviour of VideoPlayerDialog (the Windows Qt
 backend ignores setPosition() while stopped, so seeks are committed after a
 short play->pause tick).  Kept as a standalone widget so the editor shell can
 host it in its centre region.
+
+The QMediaPlayer/QAudioOutput are created lazily on the first ``set_source``.
+Constructing a media backend that is never used is the main cause of the
+Windows Qt-multimedia teardown crash, so widgets that only build the editor
+shell (tests, navigation) never instantiate one.
 """
 from __future__ import annotations
 
@@ -35,6 +40,8 @@ class PreviewPanel(QWidget):
         self._start = 0.0
         self._end: float | None = None
         self._scrubbing = False
+        self.player: QMediaPlayer | None = None
+        self.audio: QAudioOutput | None = None
         # Parented, single-shot timers: unlike QTimer.singleShot these are owned
         # by this widget, so they cannot fire into a torn-down C++ player.
         self._commit_timer = QTimer(self)
@@ -53,13 +60,6 @@ class PreviewPanel(QWidget):
         self.video_widget.setMinimumHeight(240)
         lay.addWidget(self.video_widget, 1)
 
-        self.player = QMediaPlayer(self)
-        self.audio = QAudioOutput(self)
-        self.player.setAudioOutput(self.audio)
-        self.player.setVideoOutput(self.video_widget)
-        self.player.positionChanged.connect(self._on_position)
-        self.player.durationChanged.connect(self._on_duration)
-
         controls = QHBoxLayout()
         self.play_button = QPushButton("▶ Play")
         self.play_button.setObjectName("primary")
@@ -77,9 +77,23 @@ class PreviewPanel(QWidget):
         controls.addWidget(self.timecode_label)
         lay.addLayout(controls)
 
+    def _ensure_player(self) -> bool:
+        """Create the media backend on first use; return True when available."""
+        if self.player is None:
+            self.player = QMediaPlayer(self)
+            self.audio = QAudioOutput(self)
+            self.player.setAudioOutput(self.audio)
+            self.player.setVideoOutput(self.video_widget)
+            self.player.positionChanged.connect(self._on_position)
+            self.player.durationChanged.connect(self._on_duration)
+        return self.player is not None
+
     # -- public API ----------------------------------------------------------
     def set_source(self, path: str) -> None:
-        """Load a video file for playback."""
+        """Load a video file for playback (lazily creates the backend)."""
+        if not path and self.player is None:
+            return
+        self._ensure_player()
         self.player.setSource(QUrl.fromLocalFile(path) if path else QUrl())
 
     def set_bounds(self, start: float, end: float | None = None) -> None:
@@ -88,7 +102,7 @@ class PreviewPanel(QWidget):
         self._end = float(end) if end is not None else None
 
     def play(self) -> None:
-        if self.player.source().isEmpty():
+        if not self._player_live():
             return
         if self._end is not None and self.position() >= self._end:
             self.seek(self._start)
@@ -96,24 +110,29 @@ class PreviewPanel(QWidget):
         self.play_button.setText("❚❚ Pause")
 
     def pause(self) -> None:
-        self.player.pause()
+        if self.player is not None:
+            self.player.pause()
         self.play_button.setText("▶ Play")
 
     def toggle(self) -> None:
-        if self.player.playbackState() == QMediaPlayer.PlayingState:
+        if self.player is not None and \
+                self.player.playbackState() == QMediaPlayer.PlayingState:
             self.pause()
         else:
             self.play()
 
     def stop(self) -> None:
-        self.player.stop()
+        if self.player is not None:
+            self.player.stop()
         self.play_button.setText("▶ Play")
 
     def position(self) -> float:
-        return self.player.position() / 1000.0
+        return self.player.position() / 1000.0 if self.player is not None else 0.0
 
     def _player_live(self) -> bool:
         """Guard against callbacks arriving after Qt has torn the player down."""
+        if self.player is None:
+            return False
         try:
             return not self.player.source().isEmpty()
         except RuntimeError:
@@ -176,8 +195,9 @@ class PreviewPanel(QWidget):
         """Stop timers and the media pipeline before teardown to avoid races."""
         self._commit_timer.stop()
         self._pause_timer.stop()
-        try:
-            self.player.stop()
-        except Exception:  # noqa: BLE001 - best effort during teardown
-            pass
+        if self.player is not None:
+            try:
+                self.player.stop()
+            except Exception:  # noqa: BLE001 - best effort during teardown
+                pass
         super().closeEvent(event)

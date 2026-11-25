@@ -21,6 +21,28 @@ PALETTE: dict[str, str] = {
     "success": "#22C55E",
     "warning": "#F59E0B",
     "danger": "#EF4444",
+    # Supporting tones used by specific widgets (all still tokenised).
+    "soft_red": "#FF8A8A",
+    "soft_yellow": "#E8C56A",
+    "heading": "#E8ECEF",
+    "dim_alt": "#9AA5AD",
+    "dim_alt2": "#7E8A92",
+    "viewport": "#0C0E10",
+    "thumb": "#0F1214",
+    "track": "#161B1E",
+    "track_alt": "#22282D",
+    "on_accent": "#10150A",
+    "white": "#FFFFFF",
+    "dialog_bg": "#14161A",
+    "dialog_text": "#E8ECF1",
+    # Category colours (softened accent-family tokens).
+    "kill": "#A3E635",
+    "multi_kill": "#B6FF3D",
+    "clutch": "#FFC542",
+    "knock": "#FF8A5B",
+    "knock_candidate": "#FFAB8A",
+    "combat": "#42C6FF",
+    "manual": "#FF5EDB",
 }
 
 TYPE: dict[str, int] = {

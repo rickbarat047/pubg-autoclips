@@ -11,6 +11,7 @@ from ..bootstrap import AppContext
 from ..media.decoder import frame_at
 from ..media.thumbnail import qimage_from_frame
 from .widgets.common import Card, empty_state
+from .tokens import PALETTE
 
 
 class EditorPage(QWidget):
@@ -44,7 +45,7 @@ class EditorPage(QWidget):
         self.preview_lbl = QLabel()
         self.preview_lbl.setMinimumSize(360, 220)
         self.preview_lbl.setAlignment(Qt.AlignCenter)
-        self.preview_lbl.setStyleSheet("background:#0C0E10; border-radius:8px;")
+        self.preview_lbl.setStyleSheet(f"background:{PALETTE['viewport']}; border-radius:8px;")
         self.preview_lbl.setText("No frame")
         bl.addWidget(self.preview_lbl, 3)
 
@@ -52,7 +53,7 @@ class EditorPage(QWidget):
         self.vertical_lbl.setFixedWidth(210)
         self.vertical_lbl.setMinimumHeight(370)
         self.vertical_lbl.setAlignment(Qt.AlignCenter)
-        self.vertical_lbl.setStyleSheet("background:#0C0E10; border-radius:8px;")
+        self.vertical_lbl.setStyleSheet(f"background:{PALETTE['viewport']}; border-radius:8px;")
         self.vertical_lbl.setText("Vertical\npreview")
         bl.addWidget(self.vertical_lbl, 1)
         lay.addWidget(self.body)
@@ -154,7 +155,7 @@ class EditorPage(QWidget):
         """Approximate blurred-background vertical layout for preview."""
         vw, vh = 180, 320
         canvas = QImage(vw, vh, QImage.Format_RGB32)
-        canvas.fill(QColor("#0C0E10"))
+        canvas.fill(QColor(PALETTE['viewport']))
         painter = QPainter(canvas)
         # blurred, enlarged background
         bg = pm.scaled(vw, vh, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)

@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
+from ..tokens import PALETTE
 
 
 class Card(QFrame):
@@ -60,7 +61,7 @@ def empty_state(icon: str, title: str, message: str, action_text: str | None = N
     ic.setStyleSheet("font-size: 48px;")
     ttl = QLabel(title)
     ttl.setAlignment(Qt.AlignCenter)
-    ttl.setStyleSheet("font-size: 17px; font-weight: 700; color: #E8ECEF;")
+    ttl.setStyleSheet(f"font-size: 17px; font-weight: 700; color: {PALETTE['heading']};")
     msg = QLabel(message)
     msg.setAlignment(Qt.AlignCenter)
     msg.setObjectName("muted")
@@ -87,9 +88,9 @@ class ToastLabel(QLabel):
 
     def show_message(self, text: str, error: bool = False) -> None:
         self.setText(text)
-        self.setStyleSheet("color: #FF8A8A;" if error else "color: #A3E635;")
+        self.setStyleSheet(f"color: {PALETTE['soft_red']};" if error else f"color: {PALETTE['accent']};")
         self.show()
 
     def clear(self) -> None:
-        self.clear()
+        self.setText("")  # not self.clear() — that was infinite recursion
         self.hide()

@@ -12,6 +12,7 @@ from ..config import NormalizedRegion
 from ..detection.kill_feed.ocr_engine import OcrEngine
 from ..media.decoder import frame_at
 from ..utils.logging import get_logger
+from .tokens import PALETTE
 
 log = get_logger("ui.calibration")
 
@@ -21,7 +22,7 @@ class RegionLabel(QLabel):
         super().__init__()
         self.setMinimumSize(640, 360)
         self.setAlignment(Qt.AlignCenter)
-        self.setStyleSheet("background:#0C0E10;")
+        self.setStyleSheet(f"background:{PALETTE['viewport']};")
         self._pixmap: QPixmap | None = None
         self._start: QPoint | None = None
         self._rect: QRect | None = None
@@ -46,7 +47,7 @@ class RegionLabel(QLabel):
         p.drawPixmap(ox, oy, scaled)
         self._scale = scaled.width() / max(1, self._pixmap.width())
         if self._display_rect:
-            pen = QPen(QColor("#A3E635"))
+            pen = QPen(QColor(PALETTE['accent']))
             pen.setWidth(2)
             p.setPen(pen)
             p.setBrush(QColor(124, 252, 0, 40))
@@ -118,7 +119,7 @@ class CalibrationDialog(QDialog):
         side.addWidget(QLabel("Selected region:"))
         self.preview_lbl = QLabel("No region selected")
         self.preview_lbl.setMinimumSize(320, 180)
-        self.preview_lbl.setStyleSheet("background:#0C0E10;")
+        self.preview_lbl.setStyleSheet(f"background:{PALETTE['viewport']};")
         self.preview_lbl.setAlignment(Qt.AlignCenter)
         side.addWidget(self.preview_lbl)
         self.result_lbl = QLabel("OCR result will appear here.")

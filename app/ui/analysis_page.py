@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 
 from .widgets.common import Card, empty_state
 from .widgets.step_indicator import StepIndicator
+from .tokens import PALETTE
 
 
 class AnalysisPage(QWidget):
@@ -59,7 +60,7 @@ class AnalysisPage(QWidget):
         wl.addWidget(self.details)
 
         self.error_lbl = QLabel("")
-        self.error_lbl.setStyleSheet("color:#FF8A8A;")
+        self.error_lbl.setStyleSheet(f"color:{PALETTE['soft_red']};")
         self.error_lbl.setWordWrap(True)
         wl.addWidget(self.error_lbl)
 
