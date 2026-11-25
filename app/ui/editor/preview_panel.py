@@ -91,6 +91,7 @@ class PreviewPanel(QWidget):
     # -- public API ----------------------------------------------------------
     def set_source(self, path: str) -> None:
         """Load a video file for playback (lazily creates the backend)."""
+        self.source_path = path
         if not path and self.player is None:
             return
         self._ensure_player()

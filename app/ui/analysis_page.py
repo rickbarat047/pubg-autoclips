@@ -13,7 +13,7 @@ from .tokens import PALETTE
 
 class AnalysisPage(QWidget):
     cancel_requested = Signal()
-    pause_requested = Signal()  # bool: True=pause, False=resume
+    pause_requested = Signal(bool)  # True=pause, False=resume
 
     def __init__(self) -> None:
         super().__init__()

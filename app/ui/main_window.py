@@ -90,7 +90,7 @@ class MainWindow(EditorWindow):
         self.assets = AssetsPanel(self.ctx)
         self.install_panel(self.assets_panel, self.assets)
         self.search_changed.connect(self.assets.filter)
-        self.assets.clip_selected.connect(self.open_player_for_highlight)
+        self.assets.clip_selected.connect(self._on_asset_clip_selected)
 
         # Wire the real centre preview panel into the shell.
         self.preview = PreviewPanel(self)
@@ -105,6 +105,8 @@ class MainWindow(EditorWindow):
         self.timeline.range_added.connect(self._on_manual_range_added)
         self.inspector.bounds_changed.connect(self._on_manual_bounds_changed)
         self.inspector.add_at_playhead.connect(self._on_add_at_playhead)
+        self.inspector.remove_requested.connect(self._on_remove_segment)
+        self.inspector.split_requested.connect(self._on_split_segment)
         self._connect()
 
     def _connect(self) -> None:
@@ -126,6 +128,8 @@ class MainWindow(EditorWindow):
         imp.match_ready.connect(self.start_analysis)
         self.analysis.cancel_requested.connect(self.cancel_analysis)
         self.analysis.pause_requested.connect(self.pause_analysis)
+        self.cancel_analysis_requested.connect(self.cancel_analysis)
+        self.pause_analysis_requested.connect(self.pause_analysis)
         self.clips.play_requested.connect(self.open_player_for_highlight)
         self.clips.export_requested.connect(self.export_highlights)
         self.editor.export_requested.connect(self.export_edited)
@@ -207,18 +211,87 @@ class MainWindow(EditorWindow):
     def _on_add_at_playhead(self) -> None:
         self.timeline.add_at_playhead()
 
+    @Slot()
+    def _on_remove_segment(self) -> None:
+        """Remove the manual clip currently selected in the Inspector."""
+        mid = getattr(self.inspector, "_manual_id", None)
+        if mid is None:
+            QMessageBox.information(self, "Remove clip",
+                                    "Only clips you added can be removed here.")
+            return
+        self.ctx.db.delete_manual_segment(int(mid))
+        self.inspector.set_segment(None)
+        self._load_segments_into_shell()
+
+    @Slot()
+    def _on_split_segment(self) -> None:
+        """Split the selected manual clip into two at the timeline playhead."""
+        seg = getattr(self.inspector, "_segment", None)
+        mid = getattr(self.inspector, "_manual_id", None)
+        if seg is None or mid is None:
+            QMessageBox.information(self, "Split clip",
+                                    "Select a clip you added, then position the playhead.")
+            return
+        playhead = self.timeline.playhead()
+        if not (seg.start + 0.5 < playhead < seg.end - 0.5):
+            QMessageBox.information(self, "Split clip",
+                                    "Move the playhead inside the clip to split it.")
+            return
+        self.ctx.db.update_manual_segment(int(mid), seg.start, playhead)
+        self.ctx.db.add_manual_segment(self.current_match_id, playhead, seg.end,
+                                       "Split clip")
+        self._load_segments_into_shell()
+
     def _load_segments_into_shell(self) -> None:
-        """Reload segments into the timeline and select the first for inspector."""
+        """Populate every visible editor panel from the current match.
+
+        The single-window editor's Assets, Preview, Timeline and Inspector are
+        the real UI (T4-T8); the legacy pages are hidden workflow helpers.  This
+        method is the one place that feeds all four from the database so nothing
+        depends on a hidden page being shown.
+        """
         if self.current_match_id is None:
             return
         m = self.ctx.db.get_match(self.current_match_id)
         if not m:
             return
+        # Assets: all matches + this match's highlights.
+        self.assets.set_matches(self.ctx.db.list_matches())
+        highlights = self.ctx.db.list_highlights(self.current_match_id)
+        self.assets.set_highlights(highlights)
+        # Preview: source the recording and bound it to the first kept clip.
+        self.preview.set_source(m.path)
+        kept = [h for h in highlights if getattr(h, "keep", True)]
+        if kept:
+            first = kept[0]
+            self.preview.set_bounds(first.start, first.end)
+        # Timeline + Inspector from the compiled segments.
         self.compile.set_match(self.current_match_id)
         segments = getattr(self.compile, "segments", [])
         self.timeline.set_segments(segments, m.duration)
         if segments:
             self.inspector.set_segment(segments[0])
+
+    @Slot(int)
+    def _on_asset_clip_selected(self, hid: int) -> None:
+        """Load a clip chosen in the Assets panel into the centre preview.
+
+        Keeps playback in the single editor window instead of opening a
+        separate player dialog (the dialog remains only for legacy pages).
+        """
+        h = self.ctx.db.get_highlight(hid)
+        if h is None:
+            return
+        m = self.ctx.db.get_match(h.match_id)
+        if m is None:
+            return
+        self.current_match_id = m.id
+        self.preview.set_source(m.path)
+        self.preview.set_bounds(h.start, h.end)
+        self.preview.seek(h.start)
+        seg = next((s for s in getattr(self.compile, "segments", [])
+                    if hid in (getattr(s, "highlight_ids", []) or [])), None)
+        self.inspector.set_segment(seg)
 
     def navigate(self, index: int) -> None:
         """Compatibility no-op: the editor is one window, not a stacked page set."""
@@ -236,6 +309,7 @@ class MainWindow(EditorWindow):
         """Open the Review & Export page for a match (not in the sidebar)."""
         self.current_match_id = match_id
         self.navigate(PAGE_EXPORT)
+        self._load_segments_into_shell()
 
     @Slot(int)
     def open_player_for_highlight(self, hid: int) -> None:
@@ -293,6 +367,7 @@ class MainWindow(EditorWindow):
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.progress.connect(self.analysis.update_progress)
+        worker.progress.connect(self._shell_progress)
         worker.finished.connect(self._analysis_done)
         worker.error.connect(self._analysis_error)
         worker.finished.connect(thread.quit)
@@ -307,6 +382,10 @@ class MainWindow(EditorWindow):
         self.navigate(PAGE_ANALYSIS)
         thread.start()
         self.statusBar().showMessage(f"Analysing {name}")
+        self.pause_btn.setChecked(False)
+        self.pause_btn.show()
+        self.cancel_btn.show()
+        self.analysis_status.setText(f"Analysing {name}")
 
     @Slot(object)
     def _analysis_done(self, result) -> None:
@@ -317,6 +396,9 @@ class MainWindow(EditorWindow):
         self.compile.set_match(self.current_match_id)
         self.statusBar().showMessage(
             f"Analysis complete — {len(result.events)} events, {len(result.clips)} candidates")
+        self.pause_btn.hide()
+        self.cancel_btn.hide()
+        self.analysis_status.setText("Analysis complete")
         if self._current_job_id is not None:
             self.ctx.jobs.unregister(self._current_job_id)
         # Always land on the review step so the user can play and adjust clips.
@@ -340,6 +422,14 @@ class MainWindow(EditorWindow):
         self.analysis.set_error(f"{status}: {message}")
         self.statusBar().showMessage("Analysis failed")
         QMessageBox.warning(self, "Analysis issue", message[:600])
+
+    @Slot(float, str, str)
+    def _shell_progress(self, fraction, stage=None, message=None) -> None:
+        """Mirror analysis progress into the single-window top bar."""
+        stage = stage or ""
+        message = message or ""
+        pct = int(max(0.0, min(1.0, float(fraction))) * 100)
+        self.analysis_status.setText(f"Analysis {pct}% — {stage or message}".strip())
 
     def cancel_analysis(self) -> None:
         if self._analysis_token:

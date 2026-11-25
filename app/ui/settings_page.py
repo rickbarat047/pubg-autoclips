@@ -272,6 +272,17 @@ class SettingsPage(QWidget):
 
     def save(self) -> None:
         s = self.ctx.settings
+        # Validate cross-field bounds before assigning: the pydantic validators
+        # run at construction only, so saving min>max here would persist an
+        # invalid file that resets ALL settings on next launch.
+        if self.min_dur.value() > self.max_dur.value():
+            self.toast.show_message("Min clip duration cannot exceed max duration.",
+                                    error=True)
+            return
+        if self.comp_min.value() > self.comp_max.value():
+            self.toast.show_message("Min segment length cannot exceed max length.",
+                                    error=True)
+            return
         s.ign = self.ign.text().strip()
         s.output_folder = self.output.text().strip()
         s.kill_feed.confidence_threshold = self.ocr_conf.value()

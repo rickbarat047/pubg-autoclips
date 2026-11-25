@@ -6,12 +6,14 @@ thread so the UI never blocks.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QTabWidget,
     QVBoxLayout, QWidget,
 )
 
+from ...utils.paths import thumbnails_dir
 from ...workers.thumbnail_worker import ThumbJob, ThumbnailWorker
 from ..widgets.common import section
 
@@ -67,10 +69,11 @@ class AssetsPanel(QWidget):
             match = next((m for m in self._matches
                           if getattr(m, "id", None) == getattr(h, "match_id", None)), None)
             if match is not None:
+                out = thumbnails_dir() / f"m{getattr(match, 'id', 0)}_h{h.id}.jpg"
                 jobs.append(ThumbJob(
                     video_path=getattr(match, "path", ""),
                     timestamp=float(getattr(h, "start", 0.0)),
-                    out_path="",
+                    out_path=str(out),
                     key=str(h.id),
                 ))
         if jobs:
@@ -126,3 +129,7 @@ class AssetsPanel(QWidget):
         item = self._clip_cards.get(hid)
         if item is not None and path:
             item.setToolTip(path)
+            pix = QPixmap(path)
+            if not pix.isNull():
+                item.setIcon(QIcon(pix.scaled(80, 50, Qt.KeepAspectRatio,
+                                              Qt.SmoothTransformation)))

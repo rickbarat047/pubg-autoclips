@@ -28,6 +28,8 @@ class EditorWindow(QMainWindow):
     about_requested = Signal()
     calibration_requested = Signal()
     search_changed = Signal(str)
+    cancel_analysis_requested = Signal()
+    pause_analysis_requested = Signal(bool)
 
     def __init__(self, ctx=None, parent=None) -> None:
         super().__init__(parent)
@@ -61,6 +63,24 @@ class EditorWindow(QMainWindow):
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self.search_changed.emit)
         top.addWidget(self.search, 1)
+
+        # Analysis progress + controls are part of the single window, not a
+        # hidden page. Hidden until an analysis job starts.
+        self.analysis_status = QLabel("", self.topbar)
+        self.analysis_status.setObjectName("muted")
+        top.addWidget(self.analysis_status)
+        self.pause_btn = QPushButton("Pause", self.topbar)
+        self.pause_btn.setObjectName("ghost")
+        self.pause_btn.setCheckable(True)
+        self.pause_btn.toggled.connect(
+            lambda checked: self.pause_analysis_requested.emit(bool(checked)))
+        self.pause_btn.hide()
+        top.addWidget(self.pause_btn)
+        self.cancel_btn = QPushButton("Cancel", self.topbar)
+        self.cancel_btn.setObjectName("danger")
+        self.cancel_btn.clicked.connect(self.cancel_analysis_requested.emit)
+        self.cancel_btn.hide()
+        top.addWidget(self.cancel_btn)
 
         self.import_btn = QPushButton("Import", self.topbar)
         self.import_btn.setObjectName("ghost")
