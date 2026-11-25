@@ -123,7 +123,7 @@ class DashboardPage(QWidget):
         self.review_btn.setEnabled(self._latest_match is not None)
 
         s = self.ctx.settings
-        self.ign_lbl.setText(f"In-game name: <b style='color:#7CFC00'>{s.ign or 'Not set'}</b>")
+        self.ign_lbl.setText(f"In-game name: <b style='color:#A3E635'>{s.ign or 'Not set'}</b>")
         self.ign_lbl.setTextFormat(Qt.RichText)
         self.out_lbl.setText(f"Output folder:\n{s.output_folder or 'Not configured'}")
 

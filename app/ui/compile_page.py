@@ -23,7 +23,7 @@ from .widgets.step_indicator import StepIndicator
 log = get_logger("ui.compile")
 
 CATEGORY_COLORS = {
-    "KILL": QColor("#7CFC00"),
+    "KILL": QColor("#A3E635"),
     "MULTI_KILL": QColor("#B6FF3D"),
     "CLUTCH_CANDIDATE": QColor("#FFC542"),
     "KNOCK": QColor("#FF8A5B"),
@@ -375,13 +375,13 @@ class CompilePage(QWidget):
                                              getattr(self, "events", []))
         self.stats_lbl.setText(
             f"Selected segments: <b>{len(self.segments)}</b> &nbsp;•&nbsp; "
-            f"<b style='color:#7CFC00'>Kills covered: {covered}/{total_kills}</b> &nbsp;•&nbsp; "
+            f"<b style='color:#A3E635'>Kills covered: {covered}/{total_kills}</b> &nbsp;•&nbsp; "
             f"Confirmed kills: <b>{counts['confirmed_kills']}</b> &nbsp;•&nbsp; "
             f"Multi-kills: <b>{counts['multi_kills']}</b> &nbsp;•&nbsp; "
             f"Clutch candidates: <b>{counts['clutch_candidates']}</b> &nbsp;•&nbsp; "
             f"Knocks: <b>{counts['knocks']}</b> &nbsp;•&nbsp; "
             f"Other: <b>{counts['other']}</b><br>"
-            f"Estimated duration: <b style='color:#7CFC00'>{total_duration(self.segments):.0f} s</b>"
+            f"Estimated duration: <b style='color:#A3E635'>{total_duration(self.segments):.0f} s</b>"
             f" ({total_duration(self.segments)/60:.1f} min) &nbsp;•&nbsp; "
             f"Output: <b>{self.ctx.settings.render.width}×{self.ctx.settings.render.height}</b>"
             f" @ {self.ctx.settings.render.fps} fps &nbsp;•&nbsp; "
@@ -403,7 +403,7 @@ class CompilePage(QWidget):
         self.last_output = path
         size_mb = Path(path).stat().st_size / 1e6 if Path(path).exists() else 0
         self.result_lbl.setText(
-            f"<b style='color:#7CFC00'>✓ Export complete</b><br>"
+            f"<b style='color:#A3E635'>✓ Export complete</b><br>"
             f"{Path(path).name}<br>"
             f"Duration {duration:.1f}s &nbsp;•&nbsp; {size_mb:.1f} MB<br>"
             f"Saved to {Path(path).parent}"
@@ -505,7 +505,7 @@ class CompilePage(QWidget):
     def _focus_segment(self, index: int) -> None:
         for i, row in enumerate(getattr(self, "_rows", [])):
             row.setStyleSheet(
-                "border:1px solid #7CFC00; border-radius:6px;" if i == index else "")
+                "border:1px solid #A3E635; border-radius:6px;" if i == index else "")
         # Seek the player to the clicked marker so the user sees that moment.
         if 0 <= index < len(self.segments) and self._player is not None:
             self._player.seek(self.segments[index].start)

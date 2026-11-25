@@ -22,7 +22,7 @@ class AboutPage(QWidget):
         cl = QVBoxLayout(card)
         cl.setContentsMargins(24, 22, 24, 22)
         cl.setSpacing(10)
-        cl.addWidget(QLabel(f"<h2 style='color:#7CFC00;margin:0'>{APP_NAME} v{__version__}</h2>"))
+        cl.addWidget(QLabel(f"<h2 style='color:#A3E635;margin:0'>{APP_NAME} v{__version__}</h2>"))
         intro = QLabel(
             "A free, local-first tool that analyses complete PUBG recordings, "
             "finds highlight candidates using kill-feed OCR, audio and visual signals, "

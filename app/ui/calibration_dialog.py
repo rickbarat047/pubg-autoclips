@@ -46,7 +46,7 @@ class RegionLabel(QLabel):
         p.drawPixmap(ox, oy, scaled)
         self._scale = scaled.width() / max(1, self._pixmap.width())
         if self._display_rect:
-            pen = QPen(QColor("#7CFC00"))
+            pen = QPen(QColor("#A3E635"))
             pen.setWidth(2)
             p.setPen(pen)
             p.setBrush(QColor(124, 252, 0, 40))

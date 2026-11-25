@@ -87,7 +87,7 @@ class ToastLabel(QLabel):
 
     def show_message(self, text: str, error: bool = False) -> None:
         self.setText(text)
-        self.setStyleSheet("color: #FF8A8A;" if error else "color: #7CFC00;")
+        self.setStyleSheet("color: #FF8A8A;" if error else "color: #A3E635;")
         self.show()
 
     def clear(self) -> None:

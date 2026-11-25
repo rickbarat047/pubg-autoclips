@@ -124,7 +124,7 @@ class ImportPage(QWidget):
             return
         meta = result.metadata
         self.meta_lbl.setText(
-            f"<b style='color:#7CFC00'>✓ {meta.name}</b><br>"
+            f"<b style='color:#A3E635'>✓ {meta.name}</b><br>"
             f"Duration: {meta.duration/60:.1f} min ({meta.duration:.0f}s)<br>"
             f"Resolution: {meta.width}×{meta.height} &nbsp;•&nbsp; FPS: {meta.fps:.0f}<br>"
             f"Video: {meta.video_codec} &nbsp;•&nbsp; Audio: {meta.audio_codec or 'none'}<br>"
@@ -135,7 +135,7 @@ class ImportPage(QWidget):
             self.status_lbl.setStyleSheet("color:#E8C56A;")
             self.status_lbl.setText("\n".join("⚠ " + w for w in result.warnings))
         else:
-            self.status_lbl.setStyleSheet("color:#7CFC00;")
+            self.status_lbl.setStyleSheet("color:#A3E635;")
             self.status_lbl.setText("✓ Validation passed — ready to analyse.")
         self.current_path = path
         self.import_btn.setEnabled(True)
