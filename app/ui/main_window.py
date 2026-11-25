@@ -84,6 +84,7 @@ class MainWindow(EditorWindow):
         ]
         for p in self.pages:
             p.hide()
+        self._dialogs: list[QDialog] = []
 
         # Wire the real Assets panel into the shell and keep a ref alive.
         self.assets = AssetsPanel(self.ctx)
@@ -148,15 +149,24 @@ class MainWindow(EditorWindow):
         page.setParent(self, Qt.Dialog)
         page.show()
 
+    def _show_page_dialog(self, page: QWidget, title: str) -> QDialog:
+        """Host a legacy page inside a real QDialog so it is modal-safe."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(0, 0, 0, 0)
+        page.setParent(dlg)
+        lay.addWidget(page)
+        dlg.resize(720, 640)
+        self._dialogs.append(dlg)
+        dlg.show()
+        return dlg
+
     def open_settings(self) -> None:
-        page = self.pages[PAGE_SETTINGS]
-        page.setParent(self, Qt.Dialog)
-        page.show()
+        self._show_page_dialog(self.pages[PAGE_SETTINGS], "Settings")
 
     def open_about(self) -> None:
-        page = self.pages[PAGE_ABOUT]
-        page.setParent(self, Qt.Dialog)
-        page.show()
+        self._show_page_dialog(self.pages[PAGE_ABOUT], "About")
 
     def open_highlights(self) -> None:
         page = self.clips
@@ -245,6 +255,7 @@ class MainWindow(EditorWindow):
 
     def open_calibration(self) -> None:
         dlg = CalibrationDialog(self.ctx.settings.calibration, self)
+        self._dialogs.append(dlg)
         if dlg.exec() == QDialog.Accepted:
             r = dlg.region()
             if r:
@@ -453,6 +464,7 @@ class MainWindow(EditorWindow):
                 self._compilation_export_id, status="done",
                 size_bytes=meta.file_size, duration=duration, segment_count=count)
         self.compile.set_result(path, duration)
+        self.show_result(path, duration)
         self.pages[PAGE_DASHBOARD].refresh()
         self.statusBar().showMessage(
             f"Compilation ready: {Path(path).name} ({duration:.0f}s)")
@@ -468,6 +480,7 @@ class MainWindow(EditorWindow):
             self.ctx.db.update_export(
                 self._compilation_export_id, status="failed", error=message[:500])
         self.compile.set_result("", 0, failed=message)
+        self.show_result("", 0)
         self.statusBar().showMessage("Compilation failed")
         QMessageBox.warning(self, "Compilation failed", message[:600])
 

@@ -7,11 +7,14 @@ The workflow orchestration (analysis/export/compilation workers) lives in
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QLineEdit, QMainWindow, QPushButton, QSplitter,
     QVBoxLayout, QWidget,
 )
+from pathlib import Path
 
 from ... import APP_NAME, __version__
 
@@ -120,6 +123,30 @@ class EditorWindow(QMainWindow):
         self.timeline_panel.setMaximumHeight(240)
         root.addWidget(self.timeline_panel)
 
+        # ---- Result card (hidden until an export finishes) ----
+        self.result_card = QWidget(central)
+        self.result_card.setObjectName("card")
+        rc = QHBoxLayout(self.result_card)
+        rc.setContentsMargins(14, 10, 14, 10)
+        rc.setSpacing(12)
+        self.result_label = QLabel("")
+        self.result_label.setObjectName("muted")
+        rc.addWidget(self.result_label, 1)
+        self.result_play_btn = QPushButton("Play Video")
+        self.result_play_btn.setObjectName("ghost")
+        self.result_play_btn.clicked.connect(self._play_result)
+        rc.addWidget(self.result_play_btn)
+        self.result_folder_btn = QPushButton("Open Folder")
+        self.result_folder_btn.setObjectName("ghost")
+        self.result_folder_btn.clicked.connect(self._open_result_folder)
+        rc.addWidget(self.result_folder_btn)
+        self.result_back_btn = QPushButton("Back to workspace")
+        self.result_back_btn.setObjectName("ghost")
+        self.result_back_btn.clicked.connect(self._hide_result)
+        rc.addWidget(self.result_back_btn)
+        self.result_card.hide()
+        root.addWidget(self.result_card)
+
         # Region placeholder labels — replaced by real panels in later tasks.
         for panel, caption in (
             (self.assets_panel, "Assets"),
@@ -144,3 +171,32 @@ class EditorWindow(QMainWindow):
             if w is not None:
                 w.deleteLater()
         lay.addWidget(widget)
+
+    # ---- Export result + workflow hooks --------------------------------
+    def export(self) -> None:
+        """Trigger the export workflow (wired to MainWindow's worker path)."""
+        self.export_requested.emit()
+
+    def show_result(self, path: str, duration: float = 0.0) -> None:
+        """Reveal the result card with Play / Open Folder / Back actions."""
+        self._result_path = path
+        if path:
+            self.result_label.setText(
+                f"Ready: {Path(path).name}" +
+                (f"  •  {duration:.0f}s" if duration else ""))
+        else:
+            self.result_label.setText("Export failed — see the log for details.")
+        self.result_card.show()
+
+    def _play_result(self) -> None:
+        path = getattr(self, "_result_path", "")
+        if path and Path(path).exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+
+    def _open_result_folder(self) -> None:
+        path = getattr(self, "_result_path", "")
+        if path and Path(path).exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
+
+    def _hide_result(self) -> None:
+        self.result_card.hide()

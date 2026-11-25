@@ -32,6 +32,15 @@ class VideoPlayerDialog(QDialog):
         self.setStyleSheet("background: #14161a; color: #e8ecf1;")
         self._scrubbing = False
         self._duration_ms = 0
+        # Parented timers: owned by this dialog so they cannot fire into a
+        # torn-down player at interpreter shutdown.
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.timeout.connect(self._commit_pending_seek)
+        self._pause_timer = QTimer(self)
+        self._pause_timer.setSingleShot(True)
+        self._pause_timer.timeout.connect(self._pause_safe)
+        self._seek_commit_ms = 0
 
         self.video_widget = QVideoWidget(self)
         self.video_widget.setMinimumHeight(420)
@@ -111,9 +120,19 @@ class VideoPlayerDialog(QDialog):
         """Current playback position in seconds (used by the review page)."""
         return self.player.position() / 1000.0
 
+    def _player_live(self) -> bool:
+        try:
+            return not self.player.source().isEmpty()
+        except RuntimeError:
+            return False
+
+    def _pause_safe(self) -> None:
+        if self._player_live():
+            self.player.pause()
+
     def seek(self, seconds: float) -> None:
         """Jump to an absolute position in seconds (used for marker/drag seek)."""
-        if self.player.source().isEmpty():
+        if not self._player_live():
             return
         ms = int(max(0.0, float(seconds)) * 1000)
         # Before the media is ready Qt drops setPosition; remember it and
@@ -122,24 +141,21 @@ class VideoPlayerDialog(QDialog):
             self._pending_seek_ms = ms
             self.player.setPosition(ms)
             return
-        # Some Windows Qt backends ignore setPosition() while the player is
-        # stopped, and play() starts asynchronously -- setting the position in
-        # the same tick is also dropped. Brief playback, then commit on a
-        # short timer so the media pipeline is actually running.
         was_playing = self.player.playbackState() == QMediaPlayer.PlayingState
         if was_playing:
             self.player.setPosition(ms)
         else:
             self.player.play()
-            QTimer.singleShot(150, lambda: self._commit_seek(ms))
+            self._seek_commit_ms = ms
+            self._commit_timer.start(150)
 
-    def _commit_seek(self, ms: int) -> None:
+    def _commit_pending_seek(self) -> None:
         """Apply a deferred seek once the player has left the stopped state."""
-        if self.player.source().isEmpty():
+        if not self._player_live():
             return
-        self.player.setPosition(ms)
+        self.player.setPosition(self._seek_commit_ms)
         if self.player.playbackState() == QMediaPlayer.PlayingState:
-            QTimer.singleShot(100, self.player.pause)
+            self._pause_timer.start(100)
 
     # -- Qt slots -----------------------------------------------------------
     def _on_duration(self, ms: int) -> None:
@@ -181,5 +197,7 @@ class VideoPlayerDialog(QDialog):
         return f"{total // 60:02d}:{total % 60:02d}"
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        self._commit_timer.stop()
+        self._pause_timer.stop()
         self.stop()
         super().closeEvent(event)

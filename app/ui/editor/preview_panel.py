@@ -35,6 +35,15 @@ class PreviewPanel(QWidget):
         self._start = 0.0
         self._end: float | None = None
         self._scrubbing = False
+        # Parented, single-shot timers: unlike QTimer.singleShot these are owned
+        # by this widget, so they cannot fire into a torn-down C++ player.
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.timeout.connect(self._commit_pending_seek)
+        self._pause_timer = QTimer(self)
+        self._pause_timer.setSingleShot(True)
+        self._pause_timer.timeout.connect(self.player_pause_safe)
+        self._seek_commit_ms = 0
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -103,8 +112,19 @@ class PreviewPanel(QWidget):
     def position(self) -> float:
         return self.player.position() / 1000.0
 
+    def _player_live(self) -> bool:
+        """Guard against callbacks arriving after Qt has torn the player down."""
+        try:
+            return not self.player.source().isEmpty()
+        except RuntimeError:
+            return False
+
+    def player_pause_safe(self) -> None:
+        if self._player_live():
+            self.player.pause()
+
     def seek(self, seconds: float) -> None:
-        if self.player.source().isEmpty():
+        if not self._player_live():
             return
         ms = int(max(0.0, float(seconds)) * 1000)
         if self._duration_ms <= 0:
@@ -115,14 +135,16 @@ class PreviewPanel(QWidget):
             self.player.setPosition(ms)
         else:
             self.player.play()
-            QTimer.singleShot(150, lambda: self._commit_seek(ms))
+            self._seek_commit_ms = ms
+            self._commit_timer.start(150)
 
-    def _commit_seek(self, ms: int) -> None:
-        if self.player.source().isEmpty():
+    def _commit_pending_seek(self) -> None:
+        if not self._player_live():
             return
+        ms = self._seek_commit_ms
         self.player.setPosition(ms)
         if self.player.playbackState() == QMediaPlayer.PlayingState:
-            QTimer.singleShot(100, self.player.pause)
+            self._pause_timer.start(100)
 
     # -- Qt slots ------------------------------------------------------------
     def _on_duration(self, ms: int) -> None:
@@ -151,7 +173,9 @@ class PreviewPanel(QWidget):
             self.seek(self.seek_slider.value() / 1000.0 * self._duration_ms)
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
-        """Stop the media pipeline before teardown to avoid backend races."""
+        """Stop timers and the media pipeline before teardown to avoid races."""
+        self._commit_timer.stop()
+        self._pause_timer.stop()
         try:
             self.player.stop()
         except Exception:  # noqa: BLE001 - best effort during teardown
